@@ -734,6 +734,173 @@ a { text-decoration: none; color: inherit; }
    TABLE QR SECURITY, TAMPER DETECTION & CAMERA SCANNER
    ======================================================== */
 
+/* Gatekeeper Landing Page for Guests */
+.gatekeeper-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at 50% 20%, #2f1d15, #170d09 85%);
+  color: #fff;
+  position: relative;
+  overflow-x: hidden;
+}
+.gatekeeper-nav {
+  height: 70px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+  z-index: 10;
+}
+.gatekeeper-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 700 22px var(--serif);
+  color: #f7ede2;
+  letter-spacing: -0.5px;
+}
+.gatekeeper-brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--gold);
+  color: #1a0f0a;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 16px;
+}
+.gatekeeper-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 20px 50px;
+  max-width: 500px;
+  margin: 0 auto;
+  width: 100%;
+  text-align: center;
+  z-index: 5;
+}
+.gatekeeper-card {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  border-radius: 28px;
+  padding: 28px 22px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.gatekeeper-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(229, 189, 125, 0.15);
+  color: #f0cb90;
+  border: 1px solid rgba(229, 189, 125, 0.35);
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.gatekeeper-title {
+  font: 700 24px var(--serif);
+  color: #fffdf9;
+  margin: 0 0 6px;
+  line-height: 1.25;
+}
+.gatekeeper-subtitle {
+  color: #d1c0b3;
+  font-size: 13px;
+  margin: 0 0 20px;
+  line-height: 1.5;
+  max-width: 360px;
+}
+.gatekeeper-viewport-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  height: 280px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #000;
+  border: 2px solid rgba(229, 189, 125, 0.4);
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 18px;
+}
+#gatekeeper-camera-viewport {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+#gatekeeper-camera-viewport video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+.gatekeeper-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ebdcd0;
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+.gatekeeper-status-row .pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #38d39f;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #38d39f;
+  animation: pulse 1.5s infinite;
+}
+.gatekeeper-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+.gatekeeper-flip-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: .2s;
+}
+.gatekeeper-flip-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.gatekeeper-footer-note {
+  margin-top: 20px;
+  font-size: 11.5px;
+  color: #9d8c80;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .scanned-table-pill {
   display: inline-flex;
   align-items: center;
@@ -772,24 +939,6 @@ a { text-decoration: none; color: inherit; }
 .tamper-warning-content strong {
   font-weight: 700;
   color: #703a05;
-}
-.tamper-scan-btn {
-  background: #8f4d0a;
-  color: #fff;
-  border: 0;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: .2s;
-}
-.tamper-scan-btn:hover {
-  background: #6e3a05;
 }
 
 .table-prompt-bar {
