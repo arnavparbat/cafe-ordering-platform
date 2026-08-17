@@ -981,75 +981,150 @@ function cafesPage(){
 
 // Table-Organized Orders Data Aggregator
 function getCafeTableGroups() {
-  const orders = myOrders();
-  const groups = {};
+  const cId = cafe().id;
+  const allOrders = myOrders();
+  const tableResets = db.tableResets || {};
   
-  orders.forEach(o => {
-    const tbl = String(o.table || '01').padStart(2, '0');
-    if (!groups[tbl]) {
-      groups[tbl] = {
+  // Find all distinct table numbers from active orders or default tables
+  const tableNums = new Set();
+  for (let i = 1; i <= 12; i++) tableNums.add(String(i).padStart(2, '0'));
+  allOrders.forEach(o => {
+    if (o.table) tableNums.add(String(o.table).padStart(2, '0'));
+  });
+
+  const groups = [];
+
+  Array.from(tableNums).sort().forEach(tbl => {
+    const resetTime = tableResets[`${cId}_${tbl}`] || 0;
+    
+    // Current active dining session for this table (orders placed strictly after the last table restart)
+    const activeOrders = allOrders.filter(o => 
+      String(o.table || '').padStart(2, '0') === tbl && 
+      (o.timestamp || 0) > resetTime
+    );
+
+    // Past settled orders for this table (for historical reference)
+    const pastOrders = allOrders.filter(o => 
+      String(o.table || '').padStart(2, '0') === tbl && 
+      (o.timestamp || 0) <= resetTime
+    );
+
+    // Sort active orders with latest batch first
+    activeOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+    if (activeOrders.length > 0) {
+      let totalItems = 0;
+      let total = 0;
+      let hasNew = false;
+      let activeOrdersCount = 0;
+
+      activeOrders.forEach(o => {
+        if (o.status === 'New' || o.isNew) hasNew = true;
+        if (o.status !== 'Completed' && o.status !== 'Cancelled') {
+          activeOrdersCount++;
+        }
+        (o.items || []).forEach(item => {
+          totalItems += (item.qty || 1);
+        });
+        total += (o.total || 0);
+      });
+
+      const hasReady = activeOrders.some(o => o.status === 'Ready');
+      const hasPrep = activeOrders.some(o => o.status === 'Preparing' || o.status === 'Processing');
+      
+      let status = 'Completed';
+      if (hasNew) status = 'New';
+      else if (hasPrep) status = 'Preparing';
+      else if (hasReady) status = 'Ready';
+      else if (activeOrdersCount > 0) status = 'Active';
+
+      groups.push({
         table: tbl,
+        isVacant: false,
+        orders: activeOrders,
+        pastOrdersCount: pastOrders.length,
+        customerName: activeOrders[0]?.customerName || `Guest (Table ${tbl})`,
+        hasNew,
+        totalItems,
+        total,
+        activeOrdersCount,
+        status,
+        latestTime: activeOrders[0]?.time || 'Today',
+        latestTimestamp: activeOrders[0]?.timestamp || 0,
+        resetTime
+      });
+    } else {
+      // Table is currently vacant / ready for next guest
+      const lastPastOrder = pastOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+      groups.push({
+        table: tbl,
+        isVacant: true,
         orders: [],
-        customerName: '',
+        pastOrdersCount: pastOrders.length,
+        customerName: 'No active guest',
         hasNew: false,
         totalItems: 0,
-        subtotal: 0,
-        tax: 0,
         total: 0,
         activeOrdersCount: 0,
-        status: 'Completed',
-        latestTime: o.time || 'Today',
-        latestTimestamp: o.timestamp || 0
-      };
-    }
-    groups[tbl].orders.push(o);
-  });
-
-  Object.values(groups).forEach(g => {
-    g.orders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    g.customerName = g.orders[0]?.customerName || `Guest (Table ${g.table})`;
-    g.latestTime = g.orders[0]?.time || 'Today';
-    g.latestTimestamp = g.orders[0]?.timestamp || 0;
-
-    g.orders.forEach(o => {
-      if (o.status === 'New' || o.isNew) g.hasNew = true;
-      if (o.status !== 'Completed' && o.status !== 'Cancelled') {
-        g.activeOrdersCount++;
-      }
-      (o.items || []).forEach(item => {
-        g.totalItems += (item.qty || 1);
+        status: 'Available',
+        latestTime: lastPastOrder ? `Last settled ${lastPastOrder.time || 'earlier'}` : 'Ready for guests',
+        latestTimestamp: resetTime,
+        lastSettledTotal: lastPastOrder?.total || 0,
+        resetTime
       });
-      g.total += (o.total || 0);
-    });
-
-    const hasReady = g.orders.some(o => o.status === 'Ready');
-    const hasPrep = g.orders.some(o => o.status === 'Preparing' || o.status === 'Processing');
-    const hasNew = g.orders.some(o => o.status === 'New' || o.isNew);
-    const hasActive = g.activeOrdersCount > 0;
-
-    if (hasNew) {
-      g.status = 'New';
-    } else if (hasPrep) {
-      g.status = 'Preparing';
-    } else if (hasReady) {
-      g.status = 'Ready';
-    } else if (hasActive) {
-      g.status = 'Active';
-    } else {
-      g.status = 'Completed';
     }
   });
 
-  return Object.values(groups).sort((a, b) => {
+  return groups.sort((a, b) => {
     if (a.hasNew && !b.hasNew) return -1;
     if (!a.hasNew && b.hasNew) return 1;
-    if (a.activeOrdersCount > 0 && b.activeOrdersCount === 0) return -1;
-    if (a.activeOrdersCount === 0 && b.activeOrdersCount > 0) return 1;
+    if (!a.isVacant && b.isVacant) return -1;
+    if (a.isVacant && !b.isVacant) return 1;
     return a.table.localeCompare(b.table);
   });
 }
 
 function tableSectionView(g, isExpanded) {
+  if (g.isVacant) {
+    return `<article class="table-order-card vacant-table ${isExpanded ? 'expanded' : ''}" data-table-card="${g.table}">
+      <header class="table-card-head" data-toggle-table="${g.table}">
+        <div class="table-head-left">
+          <div class="table-badge-large">
+            <span class="tbl-lbl">TABLE</span>
+            <span class="tbl-num">${esc(g.table)}</span>
+          </div>
+          <div class="table-info-meta">
+            <div class="table-title-row">
+              <h3 class="table-guest-name" style="color:var(--muted);font-weight:600;">Table ${esc(g.table)} — Ready for Next Guest</h3>
+              <span class="status status-vacant">${icon('shield-check')} Ready / Vacant</span>
+            </div>
+            <div class="table-sub-meta">
+              <span>0 active orders</span>
+              <span>·</span>
+              <span>${esc(g.latestTime)}</span>
+              <span>·</span>
+              <strong style="color:var(--muted)">Active Bill: ₹0</strong>
+            </div>
+          </div>
+        </div>
+        <div class="table-head-right">
+          <button type="button" class="table-expand-btn" data-toggle-table="${g.table}">
+            <span>${isExpanded ? 'Hide' : 'Details'}</span>
+            ${icon(isExpanded ? 'chevron-up' : 'chevron-down')}
+          </button>
+        </div>
+      </header>
+      ${isExpanded ? `<div class="table-card-body">
+        <div class="vacant-table-body">
+          <div style="font-size:28px;margin-bottom:8px;">🛋️</div>
+          <strong style="color:var(--coffee-dark);font-size:15px;">Table ${esc(g.table)} is Clean & Ready for New Customers</strong>
+          <p class="panel-sub" style="margin:6px 0 0;font-size:12px;">Previous guest's bill has been completely settled offline and closed. When a new customer scans the Table ${esc(g.table)} QR code, their fresh order and running bill will start here cleanly from ₹0.</p>
+        </div>
+      </div>` : ''}
+    </article>`;
+  }
+
+  // Active Dining Table Session
   const isNewTable = g.hasNew;
   const statusCls = statusClass(g.status);
   const subtotal = Math.round(g.total / 1.05);
@@ -1073,7 +1148,7 @@ function tableSectionView(g, isExpanded) {
             <span>·</span>
             <span>${icon('clock-3')} Latest: ${esc(g.latestTime)}</span>
             <span>·</span>
-            <strong class="table-running-total">Total: ${money(g.total)}</strong>
+            <strong class="table-running-total" style="color:#1b683f;font-size:13.5px;">Active Bill: ${money(g.total)}</strong>
           </div>
         </div>
       </div>
@@ -1086,14 +1161,14 @@ function tableSectionView(g, isExpanded) {
     </header>
     ${isExpanded ? `<div class="table-card-body">
       <div class="table-orders-timeline">
-        ${g.orders.map(ord => {
+        ${g.orders.map((ord, idx) => {
           const ordIsNew = ord.status === 'New' || ord.isNew;
           return `<div class="table-order-batch ${ordIsNew ? 'batch-new-highlight' : ''}">
             <div class="batch-header">
               <div class="batch-title">
                 <strong>Order #${esc(ord.id)}</strong>
                 <span class="batch-time">${esc(ord.time || 'Today')}</span>
-                ${ordIsNew ? `<span class="order-ring-pill animate-ring">${icon('bell-ring')} New Batch</span>` : ''}
+                ${ordIsNew ? `<span class="order-ring-pill animate-ring">${icon('bell-ring')} New Batch</span>` : `<span class="batch-num-badge">Batch #${g.orders.length - idx}</span>`}
               </div>
               <div class="batch-actions">
                 <label style="font-size:11px;color:var(--muted);font-weight:600;">Status:</label>
@@ -1128,8 +1203,8 @@ function tableSectionView(g, isExpanded) {
       <div class="table-bill-settlement-card">
         <div class="bill-summary-left">
           <div class="bill-title-row">
-            <span class="bill-heading">${icon('receipt')} Table ${esc(g.table)} Bill Summary</span>
-            <span class="bill-status-tag ${g.activeOrdersCount === 0 ? 'paid' : 'unpaid'}">${g.activeOrdersCount === 0 ? '✓ All Orders Settled' : '● Bill Pending Settlement'}</span>
+            <span class="bill-heading">${icon('receipt')} Current Guest Bill (${esc(g.customerName)})</span>
+            <span class="bill-status-tag ${g.activeOrdersCount === 0 ? 'paid' : 'unpaid'}">${g.activeOrdersCount === 0 ? '✓ Orders Fulfilled' : '● Bill Pending Settlement'}</span>
           </div>
           <div class="bill-amounts-grid">
             <div class="bill-stat"><span>Subtotal:</span><b>${money(subtotal)}</b></div>
@@ -1139,7 +1214,7 @@ function tableSectionView(g, isExpanded) {
         </div>
         <div class="bill-actions-right">
           ${isNewTable ? `<button type="button" class="outline btn-ack-table" data-ack-table="${g.table}">${icon('check')} Acknowledge & Start Preparing</button>` : ''}
-          <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Customer has paid bill offline. Complete order and reset table for next customer.">${icon('circle-check')} Complete & Restart Table (Bill Paid Offline)</button>
+          <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Customer has paid offline. Stop this guest's bill and reset table for next customer.">${icon('circle-check')} Complete & Restart Table (Bill Paid Offline)</button>
         </div>
       </div>
     </div>` : ''}
@@ -1158,7 +1233,7 @@ function renderTableSections(filteredGroups) {
     ${filteredGroups.map(g => {
       const isExpanded = state.expandedTables[g.table] !== undefined
         ? !!state.expandedTables[g.table]
-        : (g.hasNew || g.activeOrdersCount > 0);
+        : (!g.isVacant && (g.hasNew || g.activeOrdersCount > 0));
       return tableSectionView(g, isExpanded);
     }).join('')}
   </div>`;
@@ -1166,16 +1241,17 @@ function renderTableSections(filteredGroups) {
 
 function ordersPage(){
   let groups = getCafeTableGroups();
-  let totalActiveTables = groups.filter(g => g.activeOrdersCount > 0).length;
+  let totalActiveTables = groups.filter(g => !g.isVacant).length;
   let newTablesCount = groups.filter(g => g.hasNew).length;
+  let vacantTablesCount = groups.filter(g => g.isVacant).length;
   let totalOrdersCount = myOrders().length;
   let activeFilter = state.orderStatusFilter || 'all';
   let searchQuery = (state.orderSearchQuery || '').toLowerCase().trim();
 
   let filtered = groups.filter(g => {
     if (activeFilter === 'new' && !g.hasNew) return false;
-    if (activeFilter === 'active' && g.activeOrdersCount === 0) return false;
-    if (activeFilter === 'completed' && g.activeOrdersCount > 0) return false;
+    if (activeFilter === 'active' && g.isVacant) return false;
+    if (activeFilter === 'vacant' && !g.isVacant) return false;
     if (searchQuery) {
       const matchTable = `table ${g.table}`.includes(searchQuery) || g.table.includes(searchQuery);
       const matchGuest = (g.customerName || '').toLowerCase().includes(searchQuery);
@@ -1189,7 +1265,7 @@ function ordersPage(){
     <div class="orders-management-header">
       <div class="orders-title-block">
         <h2 class="panel-title">Table Orders & Service Board</h2>
-        <p class="panel-sub">All dining table orders neatly organized with real-time new item ring alerts & offline bill settlement</p>
+        <p class="panel-sub">Each dining table session is independently tracked with live ring alerts & offline bill settlement</p>
       </div>
       <div class="orders-quick-metrics">
         <div class="metric-pill ${newTablesCount > 0 ? 'alert' : ''}">
@@ -1198,7 +1274,11 @@ function ordersPage(){
         </div>
         <div class="metric-pill active">
           <span class="metric-icon">${icon('armchair')}</span>
-          <span><b>${totalActiveTables}</b> Active ${totalActiveTables === 1 ? 'Table' : 'Tables'}</span>
+          <span><b>${totalActiveTables}</b> Active Dining ${totalActiveTables === 1 ? 'Table' : 'Tables'}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="metric-icon">${icon('shield-check')}</span>
+          <span><b>${vacantTablesCount}</b> Ready / Vacant</span>
         </div>
         <div class="metric-pill">
           <span class="metric-icon">${icon('receipt')}</span>
@@ -1216,7 +1296,7 @@ function ordersPage(){
           <button type="button" class="filter-tab-pill ${activeFilter === 'all' ? 'active' : ''}" data-filter-tab="all">All Tables (${groups.length})</button>
           <button type="button" class="filter-tab-pill ${activeFilter === 'new' ? 'active' : ''} ${newTablesCount > 0 ? 'has-badge' : ''}" data-filter-tab="new">${icon('bell-ring')} Needs Action (${newTablesCount})</button>
           <button type="button" class="filter-tab-pill ${activeFilter === 'active' ? 'active' : ''}" data-filter-tab="active">Active Dining (${totalActiveTables})</button>
-          <button type="button" class="filter-tab-pill ${activeFilter === 'completed' ? 'active' : ''}" data-filter-tab="completed">Completed (${groups.length - totalActiveTables})</button>
+          <button type="button" class="filter-tab-pill ${activeFilter === 'vacant' ? 'active' : ''}" data-filter-tab="vacant">Ready / Vacant (${vacantTablesCount})</button>
         </div>
       </div>
       <div class="view-mode-toggle">
@@ -1233,12 +1313,21 @@ function ordersPage(){
 function restartTableOrder(tableNum) {
   const cleanTbl = String(tableNum).padStart(2, '0');
   const cId = cafe().id;
-  const tableOrders = db.orders.filter(o => o.cafeId === cId && String(o.table).padStart(2, '0') === cleanTbl);
+  const currentResetTime = (db.tableResets && db.tableResets[`${cId}_${cleanTbl}`]) || 0;
   
+  // Find all active orders for this table session
+  const tableOrders = db.orders.filter(o => 
+    o.cafeId === cId && 
+    String(o.table).padStart(2, '0') === cleanTbl &&
+    (o.timestamp || 0) > currentResetTime
+  );
+  
+  const now = Date.now();
   tableOrders.forEach(o => {
     o.status = 'Completed';
     o.isNew = false;
-    o.completedAt = Date.now();
+    o.completedAt = now;
+    o.settledAt = now;
     o.paymentType = 'Offline (Paid at counter)';
     if (Array.isArray(o.items)) {
       o.items.forEach(i => i.isNew = false);
@@ -1246,7 +1335,7 @@ function restartTableOrder(tableNum) {
   });
 
   db.tableResets = db.tableResets || {};
-  db.tableResets[`${cId}_${cleanTbl}`] = Date.now();
+  db.tableResets[`${cId}_${cleanTbl}`] = now;
 
   if (state.cafeId === cId && String(state.table).padStart(2, '0') === cleanTbl) {
     state.placedOrderIds = [];
@@ -1256,7 +1345,7 @@ function restartTableOrder(tableNum) {
 
   save();
   playNotificationSound();
-  toast(`🎉 Table ${cleanTbl} bill settled offline & table restarted for next guest!`);
+  toast(`🎉 Table ${cleanTbl} bill settled offline & session closed! Ready for next guest.`);
   render();
 }
 
