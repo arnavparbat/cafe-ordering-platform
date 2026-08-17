@@ -588,7 +588,6 @@ a { text-decoration: none; color: inherit; }
 .password-wrap input { width: 100%; padding-right: 45px; }
 .show-pass { position: absolute; right: 7px; bottom: 6px; background: transparent; color: var(--muted); padding: 6px; }
 .login-btn { width: 100%; margin-top: 4px; padding: 13px; }
-.demo-note { padding: 13px; margin-top: 19px; background: #f4eee6; border-radius: 9px; color: #776a5d; font-size: 11px; line-height: 1.6; }
 .customer-link { text-align: center; color: var(--coffee); font-size: 12px; margin-top: 20px; text-decoration: underline; text-underline-offset: 4px; }
 
 /* Toast & Modals */
