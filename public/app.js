@@ -30,6 +30,7 @@ const seed = {
       username: 'eatngreet',
       slug: 'eatngreet',
       password: 'cafe123',
+      qrSecret: 'eng_sec_caf001_p@rkst',
       contact: '+91 98123 45678',
       address: '18, Park Street, Kolkata',
       status: 'Active',
@@ -45,6 +46,7 @@ const seed = {
       username: 'saltlake',
       slug: 'saltlake',
       password: 'cafe123',
+      qrSecret: 'eng_sec_caf002_s@ltlk',
       contact: '+91 98345 67890',
       address: 'Sector V, Salt Lake, Kolkata',
       status: 'Active',
@@ -60,6 +62,7 @@ const seed = {
       username: 'ballygunge',
       slug: 'ballygunge',
       password: 'cafe123',
+      qrSecret: 'eng_sec_caf003_b@llyg',
       contact: '+91 98765 43210',
       address: '45/2, Ballygunge Circular Rd, Kolkata',
       status: 'Active',
@@ -136,15 +139,49 @@ db.orders = db.orders || seed.orders;
 
 db.menu.forEach(item => item.cafeId ||= db.cafes[0].id);
 db.orders.forEach(order => order.cafeId ||= db.cafes[0].id);
-db.cafes.forEach(c => {
+db.cafes.forEach((c, i) => {
   c.opensAt ||= '08:00';
   c.closesAt ||= '22:30';
   c.address ||= '18, Park Street, Kolkata';
   c.slug ||= c.username || c.id.toLowerCase();
+  c.qrSecret ||= `eng_sec_${c.id.toLowerCase()}_${c.password || 'welcome123'}`;
 });
 localStorage.setItem('juniper-db', JSON.stringify(db));
 
-// URL Parameter & Multi-Link Resolver
+// Cryptographic Deterministic Table QR Token Generator
+function generateTableToken(cafeId, table, secret) {
+  const cleanCafeId = String(cafeId || '').trim().toLowerCase();
+  const cleanTable = String(table || '').trim().padStart(2, '0');
+  const secretKey = String(secret || (cleanCafeId + '_eng_secret_key_2026'));
+  
+  const input = `eatngreet:secure-table-token:${cleanCafeId}:${cleanTable}:${secretKey}`;
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < input.length; i++) {
+    const ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `${hex1}${hex2}`;
+}
+
+// Cryptographic Deterministic Table QR Token Verifier
+function verifyTableToken(cafeId, table, token) {
+  if (!cafeId || !table || !token) return false;
+  const c = db.cafes.find(x => 
+    x.id.toLowerCase() === String(cafeId).toLowerCase() || 
+    (x.slug && x.slug.toLowerCase() === String(cafeId).toLowerCase()) || 
+    (x.username && x.username.toLowerCase() === String(cafeId).toLowerCase())
+  );
+  const secret = c?.qrSecret || `${cafeId}_eng_secret_key_2026`;
+  const expected = generateTableToken(cafeId, table, secret);
+  return String(token).trim().toLowerCase() === expected.toLowerCase();
+}
+
+// URL Parameter & Multi-Link Resolver with Tamper Detection
 function parseUrlRouting() {
   const searchParams = new URLSearchParams(window.location.search);
   const hash = window.location.hash || '';
@@ -153,6 +190,8 @@ function parseUrlRouting() {
   const cafeParam = searchParams.get('cafe') || searchParams.get('cafeId') || searchParams.get('c') || searchParams.get('id');
   // Check table parameter
   const tableParam = searchParams.get('table') || searchParams.get('t') || searchParams.get('tbl');
+  // Check token parameter
+  const tokenParam = searchParams.get('token') || searchParams.get('sig') || searchParams.get('k') || searchParams.get('auth');
   // Check view / role parameter
   const isLogin = searchParams.has('login') || searchParams.has('portal') || searchParams.has('admin') || hash.includes('login');
 
@@ -166,28 +205,45 @@ function parseUrlRouting() {
   }
 
   let matchedTable = null;
+  let isTableVerified = false;
+  let hasTamperedTable = false;
+
   if (tableParam) {
-    matchedTable = String(tableParam).trim();
-    if (/^\d+$/.test(matchedTable)) {
-      matchedTable = matchedTable.padStart(2, '0');
+    let cleanTable = String(tableParam).trim();
+    if (/^\d+$/.test(cleanTable)) {
+      cleanTable = cleanTable.padStart(2, '0');
+    }
+    const targetCafe = matchedCafe || db.cafes[0];
+    if (targetCafe && tokenParam && verifyTableToken(targetCafe.id, cleanTable, tokenParam)) {
+      matchedTable = cleanTable;
+      isTableVerified = true;
+    } else {
+      // Table parameter was changed/supplied manually without valid cryptographic QR token!
+      hasTamperedTable = cleanTable;
+      matchedTable = null;
+      isTableVerified = false;
     }
   }
 
-  return { cafeParam, matchedCafe, tableParam: matchedTable, isLogin };
+  return { cafeParam, matchedCafe, tableParam: matchedTable, isTableVerified, qrToken: isTableVerified ? tokenParam : null, hasTamperedTable, isLogin };
 }
 
-// Generate Canonical URL for any Café and Table
+// Generate Canonical Signed URL for any Café and Table
 function getCafeUrl(cafeId, table = null) {
   const origin = window.location.origin;
   const pathname = window.location.pathname.replace(/\/$/, '') || '';
   let url = `${origin}${pathname}?cafe=${encodeURIComponent(cafeId)}`;
   if (table) {
-    url += `&table=${encodeURIComponent(table)}`;
+    const cleanTable = String(table).trim().padStart(2, '0');
+    const c = db.cafes.find(x => x.id.toLowerCase() === String(cafeId).toLowerCase() || (x.slug && x.slug.toLowerCase() === String(cafeId).toLowerCase()));
+    const secret = c?.qrSecret || `${cafeId}_eng_secret_key_2026`;
+    const token = generateTableToken(cafeId, cleanTable, secret);
+    url += `&table=${encodeURIComponent(cleanTable)}&token=${encodeURIComponent(token)}`;
   }
   return url;
 }
 
-// Session Management with 1-hour persistence
+// Session Management with 1-hour persistence & table security check
 const defaultState = {
   view: 'customer',
   role: 'cafe',
@@ -198,6 +254,9 @@ const defaultState = {
   selectedOrder: null,
   customerName: '',
   table: '',
+  tableVerified: false,
+  qrToken: null,
+  tamperAttempt: null,
   tableFromQr: false,
   confirmed: null,
   orderPlacedAt: null,
@@ -211,6 +270,14 @@ function loadSession(){
     if(!raw) return null;
     const session = JSON.parse(raw);
     if(session && session.timestamp && (Date.now() - session.timestamp < SESSION_DURATION_MS)){
+      // Validate saved table token against cafe secret
+      if(session.table && session.qrToken && session.cafeId){
+        if(!verifyTableToken(session.cafeId, session.table, session.qrToken)){
+          session.table = '';
+          session.tableVerified = false;
+          session.qrToken = null;
+        }
+      }
       return session;
     }
   } catch(e){}
@@ -228,6 +295,9 @@ function saveSession(){
       customerCategory: state.customerCategory || 'All',
       customerName: state.customerName || '',
       table: state.table || '',
+      tableVerified: !!state.tableVerified,
+      qrToken: state.qrToken || null,
+      tamperAttempt: state.tamperAttempt || null,
       tableFromQr: !!state.tableFromQr,
       confirmed: state.confirmed || null,
       orderPlacedAt: state.orderPlacedAt || null,
@@ -242,7 +312,7 @@ function saveSession(){
 const savedSession = loadSession();
 let state = savedSession ? Object.assign({}, defaultState, savedSession) : Object.assign({}, defaultState);
 
-// Apply URL Routing - strictly lock to the scanned café
+// Apply URL Routing - strictly lock to the scanned café and verify signed table QR
 const routing = parseUrlRouting();
 if (routing.matchedCafe) {
   if (state.cafeId !== routing.matchedCafe.id) {
@@ -251,11 +321,24 @@ if (routing.matchedCafe) {
   state.cafeId = routing.matchedCafe.id;
   state.view = 'customer';
 }
-if (routing.tableParam) {
+
+if (routing.isTableVerified && routing.tableParam) {
   state.table = routing.tableParam;
+  state.tableVerified = true;
+  state.qrToken = routing.qrToken;
   state.tableFromQr = true;
+  state.tamperAttempt = null;
+  state.view = 'customer';
+} else if (routing.hasTamperedTable) {
+  // Tampering detected: clear any table lock & warn the customer
+  state.table = '';
+  state.tableVerified = false;
+  state.qrToken = null;
+  state.tableFromQr = false;
+  state.tamperAttempt = routing.hasTamperedTable;
   state.view = 'customer';
 }
+
 if (routing.isLogin) {
   state.view = 'login';
 } else if (!savedSession && !routing.matchedCafe && !routing.isLogin) {
@@ -477,6 +560,161 @@ function downloadCanvasAsPng(canvas, filename = 'qr-code.png') {
   }
 }
 
+// In-App Interactive Camera QR Code Scanner
+let activeScanner = null;
+let currentFacingMode = "environment";
+
+function openQrScannerModal() {
+  modal(`
+    <div class="scanner-modal-wrap">
+      <div class="scanner-head">
+        <h3>${icon('qr-code')} Scan Dining Table QR</h3>
+        <button class="icon-btn" id="scanner-modal-close">${icon('x')}</button>
+      </div>
+      <div class="scanner-body">
+        <div class="scanner-viewport-wrap">
+          <div id="qr-camera-viewport"></div>
+          <div class="scanner-target-frame">
+            <div class="scanner-target-corners"></div>
+          </div>
+          <div class="scanner-laser"></div>
+        </div>
+        <div class="scanner-status" id="scanner-status-text">Point camera at the table QR code standee</div>
+        <div class="scanner-actions">
+          <label class="outline" for="qr-file-input">
+            ${icon('image')} Upload Photo
+            <input type="file" id="qr-file-input" accept="image/*" style="display:none">
+          </label>
+          <button class="outline" id="btn-toggle-camera">${icon('refresh-cw')} Flip Camera</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  $('#scanner-modal-close')?.addEventListener('click', () => {
+    stopQrScanner();
+    closeModal();
+  });
+
+  const fileInput = $('#qr-file-input');
+  if (fileInput) {
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const statusText = $('#scanner-status-text');
+        if (statusText) statusText.textContent = 'Reading QR from photo...';
+        if (window.Html5Qrcode) {
+          const html5Qr = activeScanner || new Html5Qrcode("qr-camera-viewport");
+          const decoded = await html5Qr.scanFile(file, true);
+          handleScannedQrResult(decoded);
+        }
+      } catch (err) {
+        toast('Could not find a valid table QR in that photo');
+        const statusText = $('#scanner-status-text');
+        if (statusText) statusText.textContent = 'No QR found. Please scan directly.';
+      }
+    });
+  }
+
+  startLiveQrScanner();
+}
+
+async function startLiveQrScanner() {
+  if (!window.Html5Qrcode) {
+    const statusText = $('#scanner-status-text');
+    if (statusText) statusText.textContent = 'QR Scanner module loading...';
+    setTimeout(startLiveQrScanner, 200);
+    return;
+  }
+
+  try {
+    if (activeScanner) {
+      try { await activeScanner.stop(); } catch(e){}
+    }
+    activeScanner = new Html5Qrcode("qr-camera-viewport");
+    await activeScanner.start(
+      { facingMode: currentFacingMode },
+      { fps: 15, qrbox: { width: 220, height: 220 } },
+      (decodedText) => {
+        handleScannedQrResult(decodedText);
+      },
+      () => {}
+    );
+    $('#btn-toggle-camera')?.addEventListener('click', async () => {
+      currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+      await startLiveQrScanner();
+    });
+  } catch (err) {
+    console.warn('Live camera start error:', err);
+    const statusText = $('#scanner-status-text');
+    if (statusText) {
+      statusText.innerHTML = `<span style="color:#b45448">Camera permission needed or not available.<br>Please allow camera access or use photo upload.</span>`;
+    }
+  }
+}
+
+function stopQrScanner() {
+  if (activeScanner) {
+    try {
+      activeScanner.stop().catch(() => {}).finally(() => {
+        try { activeScanner.clear(); } catch(e){}
+        activeScanner = null;
+      });
+    } catch(e) {
+      activeScanner = null;
+    }
+  }
+}
+
+function handleScannedQrResult(qrContent) {
+  stopQrScanner();
+  closeModal();
+
+  try {
+    let url = null;
+    try {
+      url = new URL(qrContent);
+    } catch(e) {
+      if (qrContent.includes('?')) {
+        url = new URL(qrContent, window.location.origin);
+      }
+    }
+
+    if (url) {
+      const searchParams = url.searchParams;
+      const cafeParam = searchParams.get('cafe') || searchParams.get('cafeId') || searchParams.get('c');
+      const tableParam = searchParams.get('table') || searchParams.get('t') || searchParams.get('tbl');
+      const tokenParam = searchParams.get('token') || searchParams.get('sig') || searchParams.get('k') || searchParams.get('auth');
+
+      let targetCafe = cafeParam ? db.cafes.find(c => c.id.toLowerCase() === cafeParam.toLowerCase() || (c.slug && c.slug.toLowerCase() === cafeParam.toLowerCase())) : cafe();
+      targetCafe = targetCafe || db.cafes[0];
+
+      if (targetCafe && tableParam && tokenParam) {
+        let cleanTable = String(tableParam).trim();
+        if (/^\d+$/.test(cleanTable)) cleanTable = cleanTable.padStart(2, '0');
+        if (verifyTableToken(targetCafe.id, cleanTable, tokenParam)) {
+          state.cafeId = targetCafe.id;
+          state.table = cleanTable;
+          state.tableVerified = true;
+          state.qrToken = tokenParam;
+          state.tableFromQr = true;
+          state.tamperAttempt = null;
+          saveSession();
+          render();
+          playToingSound();
+          toast(`✅ Joined Table ${cleanTable}! Ready to order.`);
+          return;
+        }
+      }
+    }
+
+    toast('⚠️ Invalid table QR code. Please scan an Eat \'N Greet table standee.');
+  } catch(e) {
+    toast('⚠️ Could not verify QR code. Please try again.');
+  }
+}
+
 function render(){
   document.title = `${db.platform.companyName || "Eat 'N Greet"} — Café Console`;
   saveSession();
@@ -618,7 +856,7 @@ function qrPage(){
 
   const sampleTables = Array.from({length: 15}, (_, i) => String(i + 1).padStart(2, '0'));
 
-  return `<section class="panel"><div class="panel-head"><div><h2 class="panel-title">QR Scanner Studio & Table Standees</h2><p class="panel-sub">Generate unique QR codes for ${esc(c.name)} entrance and every dining table</p></div><button class="primary" id="btn-print-batch">${icon('printer')} Print Table Standees (Batch)</button></div><div class="qr-grid"><article class="qr-hero-card"><h3>${icon('store')} Main Café Menu QR</h3><p class="panel-sub" style="margin-top:4px">Guests scan this QR to directly access ${esc(c.name)} menu</p><div class="qr-canvas-box"><canvas id="main-qr-canvas" width="180" height="180"></canvas></div><div class="qr-url-pill"><span>${esc(mainUrl)}</span><button class="outline" id="btn-copy-main-url" style="padding:4px 8px;font-size:11px">${icon('copy')}</button></div><div class="qr-actions-row"><button class="primary" id="btn-download-main-qr">${icon('download')} Download QR (PNG)</button><button class="outline" id="btn-test-main-menu">${icon('external-link')} Test Menu</button></div></article><article class="qr-hero-card"><h3>${icon('armchair')} Table-Specific QR Scanner</h3><p class="panel-sub" style="margin-top:4px">Locks the table number and directs guests to ${esc(c.name)} only</p><div style="width:100%;margin-top:14px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)">Select Table Number</label><div class="table-chips-scroll">${sampleTables.map(t => `<button class="table-chip ${t === selectedTable ? 'active' : ''}" data-select-table="${t}">Table ${t}</button>`).join('')}</div></div><div class="standee-preview-card"><div class="standee-gold-border"><div class="standee-brand">${esc(c.name)}</div><span class="standee-table-badge">TABLE ${esc(selectedTable)}</span><div class="standee-tagline">Scan with Camera to Order & Pay</div><div class="qr-canvas-box" style="margin:8px auto;padding:8px;"><canvas id="table-qr-canvas" width="150" height="150"></canvas></div><div class="standee-steps"><span>1. Scan QR</span><span>2. Pick Items</span><span>3. Order Placed</span></div><div class="standee-wifi-info"><b>${icon('wifi')} Free Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>Password:</b> ${esc(c.wifi.password)}</div></div></div><div class="qr-url-pill"><span>${esc(tableUrl)}</span><button class="outline" id="btn-copy-table-url" style="padding:4px 8px;font-size:11px">${icon('copy')}</button></div><div class="qr-actions-row"><button class="primary" id="btn-print-single-standee">${icon('printer')} Print Table ${esc(selectedTable)} Standee</button><button class="outline" id="btn-download-table-qr">${icon('download')} Download PNG</button></div></article></div></section>`;
+  return `<section class="panel"><div class="panel-head"><div><h2 class="panel-title">QR Scanner Studio & Table Standees</h2><p class="panel-sub">Generate unique, tamper-proof QR codes for ${esc(c.name)} entrance and every dining table</p></div><button class="primary" id="btn-print-batch">${icon('printer')} Print Table Standees (Batch)</button></div><div class="qr-security-banner"><div><strong>${icon('shield-check')} Cryptographic Anti-Tamper Protection Active</strong><p>Each table QR link contains a unique signed security token. Guests cannot alter the table number in the URL to order for other tables.</p></div><button class="outline" id="btn-rotate-qr-secret" style="font-size:11px;padding:6px 12px;">${icon('refresh-cw')} Rotate Security Key</button></div><div class="qr-grid"><article class="qr-hero-card"><h3>${icon('store')} Main Café Menu QR</h3><p class="panel-sub" style="margin-top:4px">Guests scan this QR to directly access ${esc(c.name)} menu</p><div class="qr-canvas-box"><canvas id="main-qr-canvas" width="180" height="180"></canvas></div><div class="qr-url-pill"><span>${esc(mainUrl)}</span><button class="outline" id="btn-copy-main-url" style="padding:4px 8px;font-size:11px">${icon('copy')}</button></div><div class="qr-actions-row"><button class="primary" id="btn-download-main-qr">${icon('download')} Download QR (PNG)</button><button class="outline" id="btn-test-main-menu">${icon('external-link')} Test Menu</button></div></article><article class="qr-hero-card"><h3>${icon('armchair')} Table-Specific QR Scanner</h3><p class="panel-sub" style="margin-top:4px">Locks the table number with signature token for ${esc(c.name)} only</p><div style="width:100%;margin-top:14px;"><label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)">Select Table Number</label><div class="table-chips-scroll">${sampleTables.map(t => `<button class="table-chip ${t === selectedTable ? 'active' : ''}" data-select-table="${t}">Table ${t}</button>`).join('')}</div></div><div class="standee-preview-card"><div class="standee-gold-border"><div class="standee-brand">${esc(c.name)}</div><span class="standee-table-badge">TABLE ${esc(selectedTable)}</span><div class="standee-tagline">Scan with Camera to Order & Pay</div><div class="qr-canvas-box" style="margin:8px auto;padding:8px;"><canvas id="table-qr-canvas" width="150" height="150"></canvas></div><div class="standee-steps"><span>1. Scan QR</span><span>2. Pick Items</span><span>3. Order Placed</span></div><div class="standee-wifi-info"><b>${icon('wifi')} Free Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>Password:</b> ${esc(c.wifi.password)}</div></div></div><div class="qr-url-pill"><span>${esc(tableUrl)}</span><button class="outline" id="btn-copy-table-url" style="padding:4px 8px;font-size:11px">${icon('copy')}</button></div><div class="qr-actions-row"><button class="primary" id="btn-print-single-standee">${icon('printer')} Print Table ${esc(selectedTable)} Standee</button><button class="outline" id="btn-download-table-qr">${icon('download')} Download PNG</button></div></article></div></section>`;
 }
 
 function wifiPage(){
@@ -642,12 +880,16 @@ function customerView(){
     return a + (itm ? itm.price * x.qty : 0);
   }, 0);
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav>${state.table ? `<div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('armchair')} <span>Table <b>${esc(state.table)}</b> · Table QR Connected</span></span></div>` : ''}${activeOrder ? `<div class="active-order-banner ${statusClass(activeOrder.status)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Order <b>${esc(activeOrder.id)}</b>: ${esc(activeOrder.status)}</span><span class="banner-sub">${activeOrder.status === 'Ready' ? '🎉 Order is ready for you!' : activeOrder.status === 'Preparing' ? '☕ Baristas are preparing your items' : 'Order received at the bar'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track & Wi-Fi</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
+  let isTableVerified = !!(state.table && state.tableVerified);
+
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${!isTableVerified ? `<button class="outline" id="nav-btn-scan-qr" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;">${icon('camera')} <span>Scan Table</span></button>` : ''}<button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav>${state.tamperAttempt ? `<div class="tamper-warning-banner" id="tamper-banner"><div class="tamper-warning-content"><span>⚠️</span><div><strong>Unverified Table Link Detected</strong><span>You cannot change table numbers in the link. Please scan the physical QR code on Table ${esc(state.tamperAttempt)} to join.</span></div></div><button class="tamper-scan-btn" id="btn-scan-from-tamper">${icon('qr-code')} Scan Table QR</button></div>` : ''}${isTableVerified ? `<div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Verified via Table QR Standee</span></span></div>` : !state.tamperAttempt ? `<div class="table-prompt-bar"><div class="table-unverified-pill"><span>${icon('camera')} At the café? Join your table:</span><button id="nav-btn-scan-qr-bar">${icon('qr-code')} Scan Table QR</button></div></div>` : ''}${activeOrder ? `<div class="active-order-banner ${statusClass(activeOrder.status)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Order <b>${esc(activeOrder.id)}</b>: ${esc(activeOrder.status)}</span><span class="banner-sub">${activeOrder.status === 'Ready' ? '🎉 Order is ready for you!' : activeOrder.status === 'Preparing' ? '☕ Baristas are preparing your items' : 'Order received at the bar'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track & Wi-Fi</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
 }
 
 function cartDrawer(){
   let items = state.cart.map(x=>({...myMenu().find(m=>m.id===x.id),qty:x.qty})), sub = items.reduce((a,x)=>a+x.price*x.qty,0), tax = Math.round(sub*.05);
-  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary"><div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="field table-input"><label>Table number ${state.tableFromQr ? '<span style="color:#287449;font-size:11px;">(Detected from Table QR)</span>' : ''}</label><input id="table-number" type="text" maxlength="10" required placeholder="e.g. 04" value="${esc(state.table||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(sub)}</span></div><div class="sum-row"><span>Taxes (5%)</span><span>${money(tax)}</span></div><div class="sum-row total"><span>Grand total</span><span>${money(sub+tax)}</span></div><button class="primary place-order" id="place-order">Place order ${icon('arrow-right')}</button></div>`:''}</aside>`;
+  let isTableVerified = !!(state.table && state.tableVerified);
+
+  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary">${isTableVerified ? `<div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Table Standee</small></div></div>` : `<div class="table-required-box"><div class="table-required-icon">${icon('qr-code')}</div><h4>Table QR Scan Required</h4><p>To place your order and ensure it reaches your table, please scan the QR code standee on your dining table.</p><button class="primary" id="drawer-btn-scan-qr" style="width:100%;border-radius:10px;">${icon('camera')} Scan Table QR Standee</button></div>`}<div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(sub)}</span></div><div class="sum-row"><span>Taxes (5%)</span><span>${money(tax)}</span></div><div class="sum-row total"><span>Grand total</span><span>${money(sub+tax)}</span></div><button class="primary place-order" id="place-order" style="${!isTableVerified ? 'background:#5c4339;cursor:pointer;' : ''}">${isTableVerified ? `Place order ${icon('arrow-right')}` : `${icon('lock')} Scan Table QR to Place Order`}</button></div>`:''}</aside>`;
 }
 
 function confirmationView(){
@@ -910,16 +1152,25 @@ function bind(){
     toast(`Added ${item ? item.name : 'item'} to cart`);
   });
   
+  $('#nav-btn-scan-qr')?.addEventListener('click', openQrScannerModal);
+  $('#nav-btn-scan-qr-bar')?.addEventListener('click', openQrScannerModal);
+  $('#btn-scan-from-tamper')?.addEventListener('click', openQrScannerModal);
+  $('#drawer-btn-scan-qr')?.addEventListener('click', openQrScannerModal);
+  $('#btn-rotate-qr-secret')?.addEventListener('click', () => {
+    if(confirm('Rotate QR security key for ' + cafe().name + '? All previously printed QR table standees will be invalidated and must be reprinted.')){
+      cafe().qrSecret = `eng_sec_${cafe().id.toLowerCase()}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      save();
+      render();
+      toast('Security key rotated! Fresh QR codes generated.');
+    }
+  });
+
   $('#cart-open')?.addEventListener('click', () => { state.cartOpen = true; render(); });
   $('#cart-close')?.addEventListener('click', () => { state.cartOpen = false; render(); });
   $('#cart-backdrop')?.addEventListener('click', () => { state.cartOpen = false; render(); });
   
   $('#customer-name')?.addEventListener('input', e => {
     state.customerName = e.target.value;
-    saveSession();
-  });
-  $('#table-number')?.addEventListener('input', e => {
-    state.table = e.target.value;
     saveSession();
   });
 
@@ -1002,6 +1253,7 @@ function cafeModal(edit){
           id,
           ...v,
           slug: v.username.toLowerCase(),
+          qrSecret: `eng_sec_${id.toLowerCase()}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
           status: 'Active',
           wifi: { ssid: `${v.name.replace(/\s+/g,'_')}_Guest`, password: 'Welcome@123' },
           description: 'A beautiful local café.',
@@ -1134,10 +1386,14 @@ function closeModal(){
 }
 
 async function placeOrder(){
-  let table = $('#table-number')?.value.trim();
+  if(!state.table || !state.tableVerified || !state.qrToken || !verifyTableToken(cafe().id, state.table, state.qrToken)){
+    toast('🔒 Please scan the physical QR code on your dining table to place an order');
+    openQrScannerModal();
+    return;
+  }
+  let table = state.table;
   let customerName = $('#customer-name')?.value.trim();
   if(!customerName) return toast('Please enter your name');
-  if(!table) return toast('Please enter your table number');
   let items = state.cart.map(x => {
     let m = myMenu().find(m => m.id === x.id);
     return { name: m.name, qty: x.qty, price: m.price };
@@ -1150,6 +1406,7 @@ async function placeOrder(){
     cafeId: cafe().id,
     customerName,
     table: String(table).padStart(2, '0'),
+    qrVerified: true,
     items,
     total: subtotal + tax,
     status: 'New',
