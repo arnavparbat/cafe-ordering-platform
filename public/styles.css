@@ -845,12 +845,19 @@ a { text-decoration: none; color: inherit; }
 #gatekeeper-camera-viewport {
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  border-radius: 20px !important;
 }
 #gatekeeper-camera-viewport video {
   width: 100% !important;
   height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
   object-fit: cover !important;
+  border-radius: 20px !important;
 }
 .gatekeeper-status-row {
   display: flex;

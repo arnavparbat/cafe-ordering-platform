@@ -613,6 +613,8 @@ function qrGatekeeperView(){
 let activeScanner = null;
 let currentFacingMode = "environment";
 let isCameraStarting = false;
+let availableCameras = [];
+let selectedCameraId = null;
 
 async function initGatekeeperCamera() {
   if (isCameraStarting) return;
@@ -626,29 +628,106 @@ async function initGatekeeperCamera() {
     return;
   }
 
+  const statusEl = document.getElementById("gatekeeper-camera-status");
+
   try {
     if (activeScanner) {
-      try { await activeScanner.stop(); } catch(e){}
+      try {
+        await activeScanner.stop();
+        activeScanner.clear();
+      } catch(e){}
+      activeScanner = null;
     }
+
     const viewportEl = document.getElementById("gatekeeper-camera-viewport");
     if (!viewportEl) {
       isCameraStarting = false;
       return;
     }
-    activeScanner = new Html5Qrcode("gatekeeper-camera-viewport");
+
+    viewportEl.innerHTML = '';
+
+    activeScanner = new Html5Qrcode("gatekeeper-camera-viewport", {
+      verbose: false
+    });
+
+    // Query hardware cameras to select explicit device ID and avoid generic facingMode black screen bug
+    try {
+      availableCameras = await Html5Qrcode.getCameras();
+    } catch(err) {
+      console.log('Camera enumeration notice:', err);
+    }
+
+    let cameraTarget = { facingMode: currentFacingMode };
+
+    if (availableCameras && availableCameras.length > 0) {
+      let chosen = null;
+      if (currentFacingMode === "environment") {
+        // Find back / rear / wide / environment camera
+        chosen = availableCameras.find(c => /back|rear|environment|wide|main|0/i.test(c.label)) 
+              || availableCameras[availableCameras.length - 1];
+      } else {
+        // Find front / user / selfie camera
+        chosen = availableCameras.find(c => /front|user|selfie|face/i.test(c.label)) 
+              || availableCameras[0];
+      }
+      if (chosen && chosen.id) {
+        selectedCameraId = chosen.id;
+        cameraTarget = chosen.id;
+      }
+    }
+
+    const qrConfig = {
+      fps: 24,
+      qrbox: { width: 220, height: 220 },
+      aspectRatio: 1.0,
+      disableFlip: currentFacingMode === "environment"
+    };
+
     await activeScanner.start(
-      { facingMode: currentFacingMode },
-      { fps: 20, qrbox: { width: 220, height: 220 } },
+      cameraTarget,
+      qrConfig,
       (decodedText) => {
         handleGatekeeperQrScan(decodedText);
       },
       () => {}
     );
-  } catch (err) {
-    console.warn('Gatekeeper camera error:', err);
-    const statusEl = document.getElementById("gatekeeper-camera-status");
+
+    // Ensure video stream element is active and rendered
+    const video = viewportEl.querySelector('video');
+    if (video) {
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+      video.muted = true;
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+      if (video.paused) {
+        try { await video.play(); } catch(e){}
+      }
+    }
+
     if (statusEl) {
-      statusEl.innerHTML = `<span style="color:#ff8577">Camera permission required. Please allow camera access in browser.</span>`;
+      statusEl.innerHTML = `Camera active · Looking for table QR standee...`;
+    }
+  } catch (err) {
+    console.warn('Gatekeeper camera start error:', err);
+    // Fallback if specific device ID failed
+    try {
+      if (activeScanner && !activeScanner.isScanning) {
+        await activeScanner.start(
+          { facingMode: currentFacingMode },
+          { fps: 20, qrbox: { width: 220, height: 220 } },
+          (decodedText) => handleGatekeeperQrScan(decodedText),
+          () => {}
+        );
+        isCameraStarting = false;
+        return;
+      }
+    } catch(fallbackErr){}
+
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:#ff8577">Camera permission required. Please allow camera access in your browser settings.</span>`;
     }
   } finally {
     isCameraStarting = false;
@@ -1184,6 +1263,11 @@ function bind(){
   
   $('#btn-gatekeeper-flip')?.addEventListener('click', async () => {
     currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+    if (availableCameras && availableCameras.length > 1) {
+      const currentIndex = availableCameras.findIndex(c => c.id === selectedCameraId);
+      const nextIndex = (currentIndex + 1) % availableCameras.length;
+      selectedCameraId = availableCameras[nextIndex]?.id || null;
+    }
     await initGatekeeperCamera();
   });
 
