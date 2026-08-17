@@ -363,30 +363,28 @@ saveSession();
 
 // Helper to get all active table orders placed during this guest session
 function getSessionOrders(){
-  let ids = state.placedOrderIds || [];
-  if (!ids.length && state.confirmed) {
-    ids = [state.confirmed.id];
-  }
   const cleanTbl = state.table ? String(state.table).padStart(2, '0') : '';
-  const resetTime = (state.cafeId && cleanTbl && db.tableResets) ? (db.tableResets[`${state.cafeId}_${cleanTbl}`] || 0) : 0;
+  const cId = state.cafeId || (db.cafes && db.cafes[0]?.id) || 'CAF-001';
+  const resetTime = (cId && cleanTbl && db.tableResets) ? (db.tableResets[`${cId}_${cleanTbl}`] || 0) : 0;
 
-  if (cleanTbl && state.cafeId) {
-    const tableOrders = db.orders.filter(o => o.cafeId === state.cafeId && String(o.table).padStart(2, '0') === cleanTbl);
-    const existingIds = new Set(ids);
-    tableOrders.forEach(o => {
-      if ((o.timestamp || 0) > resetTime && !existingIds.has(o.id) && (Date.now() - (o.timestamp || 0) < SESSION_DURATION_MS)) {
-        ids.push(o.id);
-      }
-    });
+  if (cleanTbl && cId && Array.isArray(db.orders)) {
+    const tableOrders = db.orders.filter(o => 
+      o.cafeId === cId && 
+      String(o.table || '').padStart(2, '0') === cleanTbl && 
+      (o.timestamp || 0) > resetTime
+    );
+    
+    // Sort with latest order first
+    tableOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    
+    state.placedOrderIds = tableOrders.map(o => o.id);
+    state.confirmed = tableOrders[0] || null;
+    return tableOrders;
   }
-  state.placedOrderIds = [...new Set(ids)].filter(id => {
-    const ord = db.orders.find(o => o.id === id);
-    return ord && (ord.timestamp || 0) > resetTime;
-  });
-  if (state.confirmed && (state.confirmed.timestamp || 0) <= resetTime) {
-    state.confirmed = null;
-  }
-  return state.placedOrderIds.map(id => db.orders.find(o => o.id === id)).filter(Boolean);
+
+  let ids = state.placedOrderIds || [];
+  if (!ids.length && state.confirmed) ids = [state.confirmed.id];
+  return ids.map(id => (db.orders || []).find(o => o.id === id)).filter(Boolean);
 }
 
 function getActiveOrder(){
@@ -1336,8 +1334,9 @@ function customerView(){
   const hasPrep = sessionOrders.some(o => o.status === 'Preparing' || o.status === 'Processing');
   const bannerStatus = hasReady ? 'Ready' : hasPrep ? 'Preparing' : (latestOrder?.status || 'New');
   const totalItemsCount = sessionOrders.reduce((sum, ord) => sum + (ord.items || []).reduce((isum, itm) => isum + itm.qty, 0), 0);
+  const grandTotal = sessionOrders.reduce((sum, ord) => sum + (ord.total || 0), 0);
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:5px;" title="View all ordered items and status">${icon('clock-3')} <span>Orders (${sessionOrders.length})</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">${sessionOrders.length === 1 ? `Order <b>${esc(latestOrder.id)}</b>: ${esc(latestOrder.status)}` : `<b>${sessionOrders.length} Orders Active</b> for Table ${esc(state.table)} (${totalItemsCount} items)`}</span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track All Orders (${sessionOrders.length})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : (sessionOrders.length > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-track-btn" style="background:#281811;border-color:#b99264;" aria-label="View Table Orders and Running Bill"><div class="mobile-cart-left"><div class="mobile-cart-badge" style="background:#deb57b;color:#281811;">${sessionOrders.length}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">Table ${esc(state.table)} · ${totalItemsCount} items ordered</div><div class="mobile-cart-total" style="color:#d5f3df;">${money(grandTotal)}</div></div></div><div class="mobile-cart-right"><span>View Bill</span> ${icon('arrow-right')}</div></button></aside>` : '')}</main>`;
 }
 
 function cartDrawer(){
@@ -1353,9 +1352,9 @@ function confirmationView(){
   const latestOrder = sessionOrders[0] || state.confirmed || {};
   const status = latestOrder.status || 'New';
 
-  const isPrep = ['Preparing', 'Processing', 'Ready', 'Completed'].includes(status);
-  const isReady = ['Ready', 'Completed'].includes(status);
-  const isDone = status === 'Completed';
+  const isPrep = sessionOrders.some(o => o.status === 'Preparing' || o.status === 'Processing');
+  const isReady = sessionOrders.some(o => o.status === 'Ready');
+  const isAllDone = sessionOrders.length > 0 && sessionOrders.every(o => o.status === 'Completed');
 
   // Aggregate all items across all session orders for Table XX
   const itemMap = new Map();
@@ -1365,34 +1364,37 @@ function confirmationView(){
   sessionOrders.forEach(ord => {
     grandTotal += (ord.total || 0);
     (ord.items || []).forEach(itm => {
-      totalItemsCount += itm.qty;
-      if (itemMap.has(itm.name)) {
-        const prev = itemMap.get(itm.name);
-        itemMap.set(itm.name, { name: itm.name, qty: prev.qty + itm.qty, price: itm.price });
+      totalItemsCount += (itm.qty || 1);
+      const key = `${itm.name}__${itm.price}`;
+      if (itemMap.has(key)) {
+        const prev = itemMap.get(key);
+        itemMap.set(key, { name: itm.name, qty: prev.qty + (itm.qty || 1), price: itm.price });
       } else {
-        itemMap.set(itm.name, { name: itm.name, qty: itm.qty, price: itm.price });
+        itemMap.set(key, { name: itm.name, qty: (itm.qty || 1), price: itm.price });
       }
     });
   });
   const allOrderedItems = Array.from(itemMap.values());
+  const subtotal = Math.round(grandTotal / 1.05);
+  const tax = grandTotal - subtotal;
 
-  let statusMessage = 'We’ve sent your order straight to the bar. Make yourself comfortable.';
+  let statusMessage = 'We’ve sent your order straight to the kitchen & barista bar. Make yourself comfortable.';
   let statusBadgeColor = '#9a671f';
   let statusBadgeBg = '#fbf2dc';
   let statusBadgeText = 'Order received';
 
-  if (status === 'Preparing' || status === 'Processing') {
-    statusMessage = '☕ Our baristas and kitchen are actively preparing your items!';
-    statusBadgeColor = '#735091';
-    statusBadgeBg = '#f1eafa';
-    statusBadgeText = 'Preparing now';
-  } else if (status === 'Ready') {
+  if (isReady) {
     statusMessage = '🎉 Your items are ready! Please collect at the counter or enjoy table service.';
     statusBadgeColor = '#2e7a57';
     statusBadgeBg = '#e2f4ea';
     statusBadgeText = 'Ready for you';
-  } else if (status === 'Completed') {
-    statusMessage = 'All items fulfilled. Thank you for dining with us!';
+  } else if (isPrep) {
+    statusMessage = '☕ Our baristas and kitchen are actively preparing your items!';
+    statusBadgeColor = '#735091';
+    statusBadgeBg = '#f1eafa';
+    statusBadgeText = 'Preparing now';
+  } else if (isAllDone) {
+    statusMessage = 'All table items fulfilled. Thank you for dining with us!';
     statusBadgeColor = '#597263';
     statusBadgeBg = '#e9f0eb';
     statusBadgeText = 'Completed';
@@ -1403,57 +1405,11 @@ function confirmationView(){
     statusBadgeText = 'Cancelled';
   }
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} + Order More</button><button class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="${isReady ? 'background:#d7eee1;color:#287449;' : isPrep ? 'background:#ece1fa;color:#6b3bb8;' : ''}">${icon(isReady ? 'bell' : isPrep ? 'coffee' : 'check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${statusBadgeColor};background:${statusBadgeBg};padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">${statusBadgeText}</span><h1>${sessionOrders.length > 1 ? `Table ${esc(state.table)} Orders (${sessionOrders.length})` : `Order ${status === 'Ready' ? 'is Ready!' : status === 'Preparing' ? 'in Progress' : status === 'Completed' ? 'Completed' : 'placed successfully'}`}</h1><p>${statusMessage}</p><div class="session-orders-wrap"><h3 style="margin:0 0 4px;font-size:15px;font-family:var(--serif);color:var(--coffee-dark);display:flex;justify-content:space-between;align-items:center;"><span>${icon('clock-3')} Your Active Orders for Table ${esc(state.table)}</span><span class="session-cumulative-badge">${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order' : 'Orders'}</span></h3>${sessionOrders.map((ord, idx) => `
-    <article class="session-order-card">
-      <div class="session-order-head">
-        <div class="session-order-id-group">
-          <span class="session-order-id">Order #${esc(ord.id)} ${idx === 0 ? '<span style="font-size:10.5px;color:#8f4d0a;background:#fdf2e4;padding:2px 6px;border-radius:6px;margin-left:4px;">Latest</span>' : ''}</span>
-          <span class="session-order-time">${icon('clock-3')} Placed at ${esc(ord.time || 'Today')} · Table ${esc(ord.table)}</span>
-        </div>
-        <span class="status ${statusClass(ord.status)}">${ord.status === 'Ready' ? '🎉 Ready' : ord.status === 'Preparing' ? '☕ Preparing' : ord.status}</span>
-      </div>
+  if (sessionOrders.length === 0) {
+    return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button type="button" class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button type="button" class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} Explore Menu</button><button type="button" class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="background:#eef3ef;color:#35714f;">${icon('circle-check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#35714f;background:#eef3ef;padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">Table Session Reset</span><h1>Table ${esc(state.table)} Ready for New Guests</h1><p>Your previous table session has been settled offline and completed by the café. You can now browse the menu and start a new order.</p><div style="margin-top:24px;"><button type="button" class="primary" id="browse-menu-btn" style="padding:12px 24px;border-radius:12px;font-weight:700;font-size:14px;">${icon('utensils')} Open Guest Menu</button></div></section></main>`;
+  }
 
-      <div class="order-mini-tracker">
-        <div class="tracker-step ${['New','Preparing','Processing','Ready','Completed'].includes(ord.status)?'active':''}">Received</div>
-        <div class="tracker-step ${['Preparing','Processing','Ready','Completed'].includes(ord.status)?(ord.status==='Preparing'?'preparing active':'active'):''}">Preparing</div>
-        <div class="tracker-step ${['Ready','Completed'].includes(ord.status)?(ord.status==='Ready'?'ready active':'active'):''}">Ready</div>
-        <div class="tracker-step ${ord.status==='Completed'?'active':''}">Served</div>
-      </div>
-
-      <div class="session-order-items">
-        ${(ord.items || []).map(i => `
-          <div class="session-item-row">
-            <span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span>
-            <span class="session-item-price">${money(i.price * i.qty)}</span>
-          </div>
-        `).join('')}
-      </div>
-
-      <div class="session-order-subtotal">
-        <span>Order Amount (incl. tax)</span>
-        <strong>${money(ord.total)}</strong>
-      </div>
-    </article>
-  `).join('')}</div>${sessionOrders.length > 1 ? `
-    <div class="session-cumulative-card">
-      <div class="session-cumulative-head">
-        <h3>${icon('receipt')} All Items Ordered at Table ${esc(state.table)}</h3>
-        <span class="session-cumulative-badge">${totalItemsCount} total items</span>
-      </div>
-      <div class="session-order-items">
-        ${allOrderedItems.map(i => `
-          <div class="session-item-row">
-            <span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span>
-            <span class="session-item-price">${money(i.price * i.qty)}</span>
-          </div>
-        `).join('')}
-      </div>
-      <div class="session-cumulative-total">
-        <span>Total Table Bill</span>
-        <strong>${money(grandTotal)}</strong>
-      </div>
-    </div>
-  ` : ''}<div class="wifi-box"><h3>${icon('wifi')} Café Wi-Fi</h3><div class="wifi-detail">Network: <b>${esc(c.wifi.ssid)}</b></div><div class="wifi-detail">Password: <b id="wifi-pass">${esc(c.wifi.password)}</b> <button class="outline" id="copy-wifi" style="padding:4px 8px;margin-left:6px;font-size:11px;border-radius:6px;">Copy</button></div></div><div style="display:flex;gap:10px;justify-content:center;margin-top:22px;"><button class="primary" id="new-order" style="width:100%;max-width:320px;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;">${icon('plus')} + Order More Items for Table ${esc(state.table)}</button></div></section></main>`;
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} + Order More Items</button><button class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="${isReady ? 'background:#d7eee1;color:#287449;' : isPrep ? 'background:#ece1fa;color:#6b3bb8;' : ''}">${icon(isReady ? 'bell' : isPrep ? 'coffee' : 'check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${statusBadgeColor};background:${statusBadgeBg};padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">${statusBadgeText}</span><h1>Table ${esc(state.table)} — Active Dining Orders</h1><p>${statusMessage}</p><div class="session-cumulative-card guest-total-bill-card"><div class="session-cumulative-head"><div><h3>${icon('receipt')} Table ${esc(state.table)} Running Bill & Item Summary</h3><p class="panel-sub" style="margin:4px 0 0;font-size:11.5px;color:var(--muted);">All items ordered for this table across ${sessionOrders.length} ${sessionOrders.length === 1 ? 'order batch' : 'order batches'} until bill settlement</p></div><span class="session-cumulative-badge">${totalItemsCount} total items</span></div><div class="session-order-items">${allOrderedItems.map(i => `<div class="session-item-row"><span class="session-item-name"><b class="guest-qty-pill">${i.qty}×</b> ${esc(i.name)} <small class="item-unit-pill">(${money(i.price)} ea)</small></span><strong class="session-item-price">${money(i.price * i.qty)}</strong></div>`).join('')}</div><div class="guest-bill-breakdown"><div class="guest-bill-row"><span>Items Subtotal</span><b>${money(subtotal)}</b></div><div class="guest-bill-row"><span>Taxes & GST (5%)</span><b>${money(tax)}</b></div><div class="session-cumulative-total"><div style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;color:var(--coffee-dark);">Total Table Bill (Running Total)</span><small style="font-size:11px;font-weight:600;color:var(--muted);">💳 Pay at counter / offline when finished dining</small></div><strong class="grand-total-amount">${money(grandTotal)}</strong></div></div></div><div class="session-orders-wrap"><h3 style="margin:0 0 10px;font-size:16px;font-family:var(--serif);color:var(--coffee-dark);display:flex;justify-content:space-between;align-items:center;"><span>${icon('clipboard-list')} Order Batches Placed (${sessionOrders.length})</span><span class="session-order-count-chip">${sessionOrders.length} ${sessionOrders.length === 1 ? 'Batch' : 'Batches'}</span></h3>${sessionOrders.map((ord, idx) => `<article class="session-order-card ${idx === 0 ? 'latest-batch-card' : ''}"><div class="session-order-head"><div class="session-order-id-group"><span class="session-order-id">Order #${esc(ord.id)} ${idx === 0 ? '<span class="latest-tag-badge">Latest Order</span>' : `<span class="batch-num-badge">Batch #${sessionOrders.length - idx}</span>`}</span><span class="session-order-time">${icon('clock-3')} Placed at ${esc(ord.time || 'Today')} · Table ${esc(ord.table)}</span></div><span class="status ${statusClass(ord.status)}">${ord.status === 'Ready' ? '🎉 Ready' : ord.status === 'Preparing' ? '☕ Preparing' : ord.status}</span></div><div class="order-mini-tracker"><div class="tracker-step ${['New','Preparing','Processing','Ready','Completed'].includes(ord.status)?'active':''}">Received</div><div class="tracker-step ${['Preparing','Processing','Ready','Completed'].includes(ord.status)?(ord.status==='Preparing'?'preparing active':'active'):''}">Preparing</div><div class="tracker-step ${['Ready','Completed'].includes(ord.status)?(ord.status==='Ready'?'ready active':'active'):''}">Ready</div><div class="tracker-step ${ord.status==='Completed'?'active':''}">Served</div></div><div class="session-order-items">${(ord.items || []).map(i => `<div class="session-item-row"><span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span><span class="session-item-price">${money(i.price * i.qty)}</span></div>`).join('')}</div><div class="session-order-subtotal"><span>Batch Amount (incl. tax)</span><strong>${money(ord.total)}</strong></div></article>`).join('')}</div><div class="wifi-box"><h3>${icon('wifi')} Café Wi-Fi</h3><div class="wifi-detail">Network: <b>${esc(c.wifi.ssid)}</b></div><div class="wifi-detail">Password: <b id="wifi-pass">${esc(c.wifi.password)}</b> <button type="button" class="outline" id="copy-wifi" style="padding:4px 8px;margin-left:6px;font-size:11px;border-radius:6px;">Copy</button></div></div><div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:22px;width:100%;max-width:380px;"><button type="button" class="primary" id="new-order" style="width:100%;border-radius:12px;padding:13px 20px;font-size:14px;font-weight:700;">${icon('plus')} + Order More Items for Table ${esc(state.table)}</button><button type="button" class="outline" id="btn-refresh-guest-status" style="width:100%;border-radius:12px;padding:10px 16px;font-size:12px;font-weight:600;">${icon('refresh-cw')} Refresh Order Status</button></div></section></main>`;
 }
 
 function bind(){
@@ -1810,14 +1766,34 @@ function bind(){
     render();
   });
 
-  $('#browse-menu-btn')?.addEventListener('click', () => {
-    state.view = 'customer';
+  $$('#browse-menu-btn').forEach(btn => {
+    btn.onclick = () => {
+      state.view = 'customer';
+      render();
+    };
+  });
+
+  $('#banner-track-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.view = 'confirmation';
     render();
   });
 
-  $('#banner-track-btn')?.addEventListener('click', () => {
+  $('#active-order-bar')?.addEventListener('click', () => {
     state.view = 'confirmation';
     render();
+  });
+
+  $('#floating-track-btn')?.addEventListener('click', () => {
+    state.view = 'confirmation';
+    render();
+  });
+
+  $('#btn-refresh-guest-status')?.addEventListener('click', async () => {
+    toast('Refreshing order status...');
+    await syncCloudDb();
+    render();
+    toast('Order status up to date!');
   });
 
   $('#place-order')?.addEventListener('click', placeOrder);
