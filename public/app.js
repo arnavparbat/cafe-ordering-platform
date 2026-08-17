@@ -399,52 +399,82 @@ function playNotificationSound() {
 function statusClass(s){ return (s || '').toLowerCase().replace(' ', ''); }
 function icon(n){ return `<i class="icon icon-${n}"></i>`; }
 
-// High-Definition QR Code Renderer
+// Free High-Speed QR Code Generator Services with auto-fallbacks
+function getQrServiceUrl(text, size = 300) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}&margin=1&color=2a1811&bgcolor=ffffff`;
+}
+
+// High-Definition QR Code Renderer (Free QR Server API + Fallbacks)
 function renderQr(canvas, text, size = 180) {
   if (!canvas) return;
   canvas.width = size;
   canvas.height = size;
+  canvas.dataset.qrUrl = text;
   
-  if (window.QRCode && window.QRCode.toCanvas) {
-    window.QRCode.toCanvas(canvas, text, {
-      width: size,
-      margin: 1,
-      color: {
-        dark: '#2a1811',
-        light: '#ffffff'
-      }
-    }, function(error) {
-      if (error) console.error('QR Render Error:', error);
-    });
-  } else {
-    setTimeout(() => {
-      if (window.QRCode && window.QRCode.toCanvas) {
-        window.QRCode.toCanvas(canvas, text, {
-          width: size,
-          margin: 1,
-          color: { dark: '#2a1811', light: '#ffffff' }
-        });
-      } else {
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+
+  img.onload = () => {
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+  };
+
+  img.onerror = () => {
+    // Fallback 1: QuickChart QR API
+    const fallback1 = new Image();
+    fallback1.crossOrigin = 'anonymous';
+    fallback1.onload = () => {
+      ctx.clearRect(0, 0, size, size);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(fallback1, 0, 0, size, size);
+    };
+    fallback1.onerror = () => {
+      // Fallback 2: Google Chart QR API
+      const fallback2 = new Image();
+      fallback2.crossOrigin = 'anonymous';
+      fallback2.onload = () => {
+        ctx.clearRect(0, 0, size, size);
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = '#2a1811';
-        ctx.font = '11px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('QR Code Scanner', size / 2, size / 2 - 10);
-        ctx.font = '9px monospace';
-        ctx.fillText(text.slice(0, 24) + '...', size / 2, size / 2 + 10);
-      }
-    }, 100);
-  }
+        ctx.drawImage(fallback2, 0, 0, size, size);
+      };
+      fallback2.src = `https://chart.googleapis.com/chart?chs=${size * 2}x${size * 2}&cht=qr&chl=${encodeURIComponent(text)}&choe=UTF-8`;
+    };
+    fallback1.src = `https://quickchart.io/qr?text=${encodeURIComponent(text)}&size=${size * 2}&margin=1&dark=2a1811&light=ffffff`;
+  };
+
+  img.src = getQrServiceUrl(text, size * 2);
 }
 
 function downloadCanvasAsPng(canvas, filename = 'qr-code.png') {
   if (!canvas) return;
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  try {
+    const dataUrl = canvas.toDataURL('image/png');
+    if (dataUrl && dataUrl.length > 500) {
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+      return;
+    }
+  } catch(e){}
+
+  const text = canvas.dataset?.qrUrl;
+  if (text) {
+    const directUrl = getQrServiceUrl(text, 600);
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = directUrl;
+    link.target = '_blank';
+    link.click();
+  }
 }
 
 function render(){
@@ -1050,23 +1080,22 @@ function qrModal(c){
 // Printable Single Standee Window
 function printSingleStandee(c, tableNum) {
   const tableUrl = getCafeUrl(c.id, tableNum);
+  const qrImgUrl = getQrServiceUrl(tableUrl, 400);
   const win = window.open('', '_blank', 'width=800,height=900');
   if (!win) return alert('Please allow popups to print table standees');
   
-  win.document.write(`<!DOCTYPE html><html><head><title>Table ${tableNum} Standee — ${esc(c.name)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"><script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script><style>
+  win.document.write(`<!DOCTYPE html><html><head><title>Table ${tableNum} Standee — ${esc(c.name)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"><style>
     body { margin: 0; padding: 40px; font-family: 'DM Sans', sans-serif; background: #fff; display: flex; justify-content: center; align-items: center; min-height: 90vh; }
     .standee { width: 340px; border: 3px solid #2a1811; border-radius: 20px; padding: 28px 24px; text-align: center; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
     .inner { border: 1.5px solid #c8a77a; border-radius: 14px; padding: 22px 16px; }
     h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 0 0 4px; color: #2a1811; }
     .table-pill { display: inline-block; background: #2a1811; color: #fff; font-size: 15px; font-weight: 700; padding: 6px 18px; border-radius: 16px; margin: 10px 0; letter-spacing: 1px; }
     .tagline { font-size: 12px; color: #7a6555; margin: 6px 0 14px; font-weight: 600; }
-    canvas { display: block; margin: 0 auto; border-radius: 8px; }
+    .qr-img { display: block; margin: 10px auto; border-radius: 8px; width: 180px; height: 180px; }
     .steps { display: flex; justify-content: space-between; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 10px 0; margin: 16px 0; font-size: 11px; font-weight: 600; color: #443328; }
     .wifi { background: #fbf8f3; border: 1px dashed #d5c3b0; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; text-align: left; color: #4a3b30; }
     @media print { body { padding: 0; } .standee { box-shadow: none; border-color: #000; } }
-  </style></head><body><div class="standee"><div class="inner"><h1>${esc(c.name)}</h1><div class="table-pill">TABLE ${esc(tableNum)}</div><div class="tagline">SCAN WITH PHONE CAMERA TO ORDER</div><canvas id="qr" width="180" height="180"></canvas><div class="steps"><span>1. Scan QR</span><span>2. Select Food</span><span>3. Order Placed!</span></div><div class="wifi"><b>📶 Free Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>🔑 Password:</b> ${esc(c.wifi.password)}</div></div></div><script>
-    window.QRCode.toCanvas(document.getElementById('qr'), "${tableUrl}", { width: 180, margin: 1, color: { dark: '#2a1811', light: '#ffffff' } }, function() { setTimeout(() => window.print(), 350); });
-  </script></body></html>`);
+  </style></head><body><div class="standee"><div class="inner"><h1>${esc(c.name)}</h1><div class="table-pill">TABLE ${esc(tableNum)}</div><div class="tagline">SCAN WITH PHONE CAMERA TO ORDER</div><img class="qr-img" src="${qrImgUrl}" alt="Table ${esc(tableNum)} QR Code" onload="setTimeout(() => window.print(), 350);" /><div class="steps"><span>1. Scan QR</span><span>2. Select Food</span><span>3. Order Placed!</span></div><div class="wifi"><b>📶 Free Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>🔑 Password:</b> ${esc(c.wifi.password)}</div></div></div></body></html>`);
   win.document.close();
 }
 
@@ -1077,7 +1106,7 @@ function printBatchStandees(c, count = 12) {
 
   const tables = Array.from({length: count}, (_, i) => String(i + 1).padStart(2, '0'));
   
-  win.document.write(`<!DOCTYPE html><html><head><title>Batch Table Standees — ${esc(c.name)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"><script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script><style>
+  win.document.write(`<!DOCTYPE html><html><head><title>Batch Table Standees — ${esc(c.name)}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"><style>
     body { margin: 0; padding: 20px; font-family: 'DM Sans', sans-serif; background: #fff; }
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
     .standee { border: 2px solid #2a1811; border-radius: 16px; padding: 18px; text-align: center; background: #fff; page-break-inside: avoid; }
@@ -1085,18 +1114,12 @@ function printBatchStandees(c, count = 12) {
     h2 { font-family: 'Playfair Display', serif; font-size: 18px; margin: 0 0 2px; color: #2a1811; }
     .table-pill { display: inline-block; background: #2a1811; color: #fff; font-size: 13px; font-weight: 700; padding: 4px 14px; border-radius: 14px; margin: 6px 0; }
     .tagline { font-size: 10.5px; color: #7a6555; margin: 4px 0 8px; font-weight: 600; }
-    canvas { display: block; margin: 0 auto; border-radius: 6px; }
+    .qr-img { display: block; margin: 8px auto; border-radius: 6px; width: 140px; height: 140px; }
     .steps { display: flex; justify-content: space-around; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 6px 0; margin: 10px 0; font-size: 9.5px; font-weight: 600; color: #443328; }
     .wifi { background: #fbf8f3; border: 1px dashed #d5c3b0; border-radius: 8px; padding: 7px 10px; font-size: 10px; text-align: left; color: #4a3b30; }
     @media print { body { padding: 0; } .grid { gap: 16px; } }
-  </style></head><body><h1 style="text-align:center;font-size:18px;margin-bottom:16px;" class="no-print">Printing ${count} Table Standees for ${esc(c.name)}</h1><div class="grid">${tables.map(t => `<div class="standee"><div class="inner"><h2>${esc(c.name)}</h2><div class="table-pill">TABLE ${t}</div><div class="tagline">SCAN WITH PHONE CAMERA TO ORDER</div><canvas id="qr-${t}" width="140" height="140"></canvas><div class="steps"><span>1. Scan QR</span><span>2. Select Food</span><span>3. Order Placed!</span></div><div class="wifi"><b>📶 Free Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>🔑 Password:</b> ${esc(c.wifi.password)}</div></div></div>`).join('')}</div><script>
-    let remaining = ${tables.length};
-    ${tables.map(t => `
-      window.QRCode.toCanvas(document.getElementById('qr-${t}'), "${getCafeUrl(c.id, t)}", { width: 140, margin: 1, color: { dark: '#2a1811', light: '#ffffff' } }, function() {
-        remaining--;
-        if (remaining <= 0) setTimeout(() => window.print(), 400);
-      });
-    `).join('')}
+  </style></head><body><h1 style="text-align:center;font-size:18px;margin-bottom:16px;" class="no-print">Printing ${count} Table Standees for ${esc(c.name)}</h1><div class="grid">${tables.map(t => `<div class="standee"><div class="inner"><h2>${esc(c.name)}</h2><div class="table-pill">TABLE ${t}</div><div class="tagline">SCAN WITH PHONE CAMERA TO ORDER</div><img class="qr-img" src="${getQrServiceUrl(getCafeUrl(c.id, t), 300)}" alt="Table ${t} QR Code" /><div class="steps"><span>1. Scan QR</span><span>2. Select Food</span><span>3. Order Placed!</span></div><div class="wifi"><b>📶 Free Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>🔑 Password:</b> ${esc(c.wifi.password)}</div></div></div>`).join('')}</div><script>
+    setTimeout(() => window.print(), 500);
   </script></body></html>`);
   win.document.close();
 }
