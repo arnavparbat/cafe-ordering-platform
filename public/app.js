@@ -98,10 +98,10 @@ const seed = {
     {id:'m17',cafeId:'CAF-003',name:'Fudge Walnut Brownie',description:'Rich Belgian chocolate brownie with roasted walnuts.',price:200,category:'Desserts',image:imgs.brownie,available:true,veg:true}
   ],
   orders: [
-    {id:'ORD-1048',cafeId:'CAF-001',table:'04',items:[{name:'House Cappuccino',qty:2,price:180},{name:'Butter Croissant',qty:1,price:155}],total:515,status:'Preparing',time:'10:42 AM',date:'Today'},
-    {id:'ORD-1047',cafeId:'CAF-001',table:'11',items:[{name:'Truffle Cream Pasta',qty:1,price:410}],total:410,status:'New',time:'10:31 AM',date:'Today'},
-    {id:'ORD-1046',cafeId:'CAF-002',table:'07',items:[{name:'Spanish Cortado',qty:1,price:195},{name:'Classic Basque Cheesecake',qty:1,price:240}],total:435,status:'Ready',time:'10:18 AM',date:'Today'},
-    {id:'ORD-1045',cafeId:'CAF-003',table:'02',items:[{name:'Avocado Sourdough Toast',qty:1,price:310}],total:310,status:'Completed',time:'09:52 AM',date:'Today'}
+    {id:'ORD-1048',cafeId:'CAF-001',table:'04',customerName:'Ananya Sharma',items:[{name:'House Cappuccino',qty:2,price:180},{name:'Butter Croissant',qty:1,price:155}],total:515,status:'Preparing',time:'10:42 AM',date:'Today',timestamp:Date.now()-1000*60*25},
+    {id:'ORD-1047',cafeId:'CAF-001',table:'11',customerName:'Rahul Sen',items:[{name:'Truffle Cream Pasta',qty:1,price:410,isNew:true}],total:410,status:'New',isNew:true,time:'10:31 AM',date:'Today',timestamp:Date.now()-1000*60*10},
+    {id:'ORD-1046',cafeId:'CAF-002',table:'07',customerName:'Priya Patel',items:[{name:'Spanish Cortado',qty:1,price:195},{name:'Classic Basque Cheesecake',qty:1,price:240}],total:435,status:'Ready',time:'10:18 AM',date:'Today',timestamp:Date.now()-1000*60*45},
+    {id:'ORD-1045',cafeId:'CAF-003',table:'02',customerName:'Vikram Das',items:[{name:'Avocado Sourdough Toast',qty:1,price:310}],total:310,status:'Completed',time:'09:52 AM',date:'Today',timestamp:Date.now()-1000*60*90}
   ]
 };
 
@@ -136,9 +136,18 @@ db.platform = Object.assign({
 if (!db.cafes || !db.cafes.length) db.cafes = seed.cafes;
 db.menu = db.menu || seed.menu;
 db.orders = db.orders || seed.orders;
+db.tableResets = db.tableResets || {};
 
 db.menu.forEach(item => item.cafeId ||= db.cafes[0].id);
-db.orders.forEach(order => order.cafeId ||= db.cafes[0].id);
+db.orders.forEach(order => {
+  order.cafeId ||= db.cafes[0].id;
+  order.customerName ||= 'Guest (' + (order.table ? `Table ${order.table}` : 'Walk-in') + ')';
+  order.timestamp ||= Date.now() - 1000 * 60 * 30;
+  if (order.status === 'New') {
+    order.isNew = true;
+    (order.items || []).forEach(i => i.isNew = true);
+  }
+});
 db.cafes.forEach((c, i) => {
   c.opensAt ||= '08:00';
   c.closesAt ||= '22:30';
@@ -262,7 +271,11 @@ const defaultState = {
   confirmed: null,
   orderPlacedAt: null,
   cartOpen: false,
-  selectedQrTable: '01'
+  selectedQrTable: '01',
+  orderViewMode: 'tables',
+  orderStatusFilter: 'all',
+  orderSearchQuery: '',
+  expandedTables: {}
 };
 
 function loadSession(){
@@ -354,17 +367,25 @@ function getSessionOrders(){
   if (!ids.length && state.confirmed) {
     ids = [state.confirmed.id];
   }
-  if (state.table && state.cafeId) {
-    const cleanTbl = String(state.table).padStart(2, '0');
+  const cleanTbl = state.table ? String(state.table).padStart(2, '0') : '';
+  const resetTime = (state.cafeId && cleanTbl && db.tableResets) ? (db.tableResets[`${state.cafeId}_${cleanTbl}`] || 0) : 0;
+
+  if (cleanTbl && state.cafeId) {
     const tableOrders = db.orders.filter(o => o.cafeId === state.cafeId && String(o.table).padStart(2, '0') === cleanTbl);
     const existingIds = new Set(ids);
     tableOrders.forEach(o => {
-      if (!existingIds.has(o.id) && (Date.now() - (o.timestamp || 0) < SESSION_DURATION_MS)) {
+      if ((o.timestamp || 0) > resetTime && !existingIds.has(o.id) && (Date.now() - (o.timestamp || 0) < SESSION_DURATION_MS)) {
         ids.push(o.id);
       }
     });
   }
-  state.placedOrderIds = [...new Set(ids)];
+  state.placedOrderIds = [...new Set(ids)].filter(id => {
+    const ord = db.orders.find(o => o.id === id);
+    return ord && (ord.timestamp || 0) > resetTime;
+  });
+  if (state.confirmed && (state.confirmed.timestamp || 0) <= resetTime) {
+    state.confirmed = null;
+  }
   return state.placedOrderIds.map(id => db.orders.find(o => o.id === id)).filter(Boolean);
 }
 
@@ -931,7 +952,21 @@ function adminDash(){
 }
 
 function cafeDash(){
-  return `${stats()}<section class="grid split"><article class="panel"><div class="panel-head"><div><h2 class="panel-title">Live order board</h2><p class="panel-sub">Keep today’s service moving beautifully</p></div><button class="outline" onclick="state.page='orders';render()">View all</button></div><div class="order-list">${myOrders().slice(0,4).map(orderRow).join('')}</div></article>${chart()}</section>`;
+  let groups = getCafeTableGroups();
+  let activeGroups = groups.filter(g => g.activeOrdersCount > 0 || g.hasNew);
+  return `${stats()}<section class="grid split"><article class="panel"><div class="panel-head"><div><h2 class="panel-title">Active Dining Tables & Live Orders</h2><p class="panel-sub">Organized by dining tables with new item alerts</p></div><button class="outline" onclick="state.page='orders';render()">View All Tables</button></div>${activeGroups.length ? `<div class="dash-tables-list">${activeGroups.slice(0, 4).map(g => `
+    <div class="dash-table-row ${g.hasNew ? 'alert-row' : ''}">
+      <div class="table-badge ${g.hasNew ? 'glow-ring' : ''}">${esc(g.table)}</div>
+      <div class="dash-table-main">
+        <div class="dash-table-title"><strong>${esc(g.customerName)}</strong> ${g.hasNew ? `<span class="table-ring-badge animate-ring">${icon('bell-ring')} <span class="ring-pulse-dot"></span> New Order</span>` : ''}</div>
+        <div class="cell-sub">${g.orders.length} ${g.orders.length === 1 ? 'order' : 'orders'} · ${g.totalItems} items · Latest ${esc(g.latestTime)}</div>
+      </div>
+      <div class="dash-table-total"><strong>${money(g.total)}</strong></div>
+      <div class="dash-table-action">
+        <button class="soft" onclick="state.page='orders';state.expandedTables['${g.table}']=true;render();">${icon('arrow-right')} View Table</button>
+      </div>
+    </div>
+  `).join('')}</div>` : `<div class="order-list">${myOrders().slice(0,4).map(orderRow).join('')}</div>`}</article>${chart()}</section>`;
 }
 
 function chart(){
@@ -946,9 +981,301 @@ function cafesPage(){
   return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes"></div><select class="select"><option>All statuses</option><option>Active</option><option>Inactive</option></select></div><span class="panel-sub">${db.cafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${db.cafes.map(c=>`<tr><td><div style="display:flex;align-items:center;gap:11px"><img class="cafe-logo-sm" src="${c.image}"><div><div class="cell-title">${esc(c.name)}</div><div class="cell-sub">@${esc(c.username)} · ${esc(c.address)}</div></div></div></td><td><b>${esc(c.id)}</b></td><td><button class="outline copy-cafe-link" data-url="${getCafeUrl(c.id)}" style="padding:5px 10px;font-size:11px;">${icon('copy')} Copy Link</button></td><td><button class="primary view-cafe-qr" data-cafe="${c.id}" style="padding:5px 10px;font-size:11px;">${icon('qr-code')} View QR</button></td><td><button class="outline admin-rotate-key" data-cafe="${c.id}" title="Rotate cryptographic security key for ${esc(c.name)}" style="padding:5px 10px;font-size:11px;color:#8f4d0a;">${icon('refresh-cw')} Rotate Key</button></td><td><button class="status ${statusClass(c.status)} status-toggle" data-cafe="${c.id}">${c.status}</button></td><td><div style="display:flex;gap:6px;"><button class="outline visit-cafe-menu" data-cafe="${c.id}" title="Open guest menu" style="padding:5px 8px;font-size:11px;">${icon('external-link')}</button><button class="dots edit-cafe" data-cafe="${c.id}">${icon('ellipsis')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
 }
 
+// Table-Organized Orders Data Aggregator
+function getCafeTableGroups() {
+  const orders = myOrders();
+  const groups = {};
+  
+  orders.forEach(o => {
+    const tbl = String(o.table || '01').padStart(2, '0');
+    if (!groups[tbl]) {
+      groups[tbl] = {
+        table: tbl,
+        orders: [],
+        customerName: '',
+        hasNew: false,
+        totalItems: 0,
+        subtotal: 0,
+        tax: 0,
+        total: 0,
+        activeOrdersCount: 0,
+        status: 'Completed',
+        latestTime: o.time || 'Today',
+        latestTimestamp: o.timestamp || 0
+      };
+    }
+    groups[tbl].orders.push(o);
+  });
+
+  Object.values(groups).forEach(g => {
+    g.orders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    g.customerName = g.orders[0]?.customerName || `Guest (Table ${g.table})`;
+    g.latestTime = g.orders[0]?.time || 'Today';
+    g.latestTimestamp = g.orders[0]?.timestamp || 0;
+
+    g.orders.forEach(o => {
+      if (o.status === 'New' || o.isNew) g.hasNew = true;
+      if (o.status !== 'Completed' && o.status !== 'Cancelled') {
+        g.activeOrdersCount++;
+      }
+      (o.items || []).forEach(item => {
+        g.totalItems += (item.qty || 1);
+      });
+      g.total += (o.total || 0);
+    });
+
+    const hasReady = g.orders.some(o => o.status === 'Ready');
+    const hasPrep = g.orders.some(o => o.status === 'Preparing' || o.status === 'Processing');
+    const hasNew = g.orders.some(o => o.status === 'New' || o.isNew);
+    const hasActive = g.activeOrdersCount > 0;
+
+    if (hasNew) {
+      g.status = 'New';
+    } else if (hasPrep) {
+      g.status = 'Preparing';
+    } else if (hasReady) {
+      g.status = 'Ready';
+    } else if (hasActive) {
+      g.status = 'Active';
+    } else {
+      g.status = 'Completed';
+    }
+  });
+
+  return Object.values(groups).sort((a, b) => {
+    if (a.hasNew && !b.hasNew) return -1;
+    if (!a.hasNew && b.hasNew) return 1;
+    if (a.activeOrdersCount > 0 && b.activeOrdersCount === 0) return -1;
+    if (a.activeOrdersCount === 0 && b.activeOrdersCount > 0) return 1;
+    return a.table.localeCompare(b.table);
+  });
+}
+
+function tableSectionView(g, isExpanded) {
+  const isNewTable = g.hasNew;
+  const statusCls = statusClass(g.status);
+  const subtotal = Math.round(g.total / 1.05);
+  const tax = g.total - subtotal;
+
+  return `<article class="table-order-card ${isNewTable ? 'has-new-alert' : ''} ${isExpanded ? 'expanded' : ''}" data-table-card="${g.table}">
+    <header class="table-card-head" data-toggle-table="${g.table}">
+      <div class="table-head-left">
+        <div class="table-badge-large ${isNewTable ? 'glow-ring' : ''}">
+          <span class="tbl-lbl">TABLE</span>
+          <span class="tbl-num">${esc(g.table)}</span>
+        </div>
+        <div class="table-info-meta">
+          <div class="table-title-row">
+            <h3 class="table-guest-name">${esc(g.customerName)}</h3>
+            <span class="status ${statusCls}">${esc(g.status === 'New' ? '🔔 New Order' : g.status)}</span>
+            ${isNewTable ? `<span class="table-ring-badge animate-ring" title="New order placed by table">${icon('bell-ring')} <span class="ring-pulse-dot"></span> <b>New Items Added!</b></span>` : ''}
+          </div>
+          <div class="table-sub-meta">
+            <span>${icon('clipboard-list')} ${g.orders.length} ${g.orders.length === 1 ? 'order' : 'orders'} (${g.totalItems} items)</span>
+            <span>·</span>
+            <span>${icon('clock-3')} Latest: ${esc(g.latestTime)}</span>
+            <span>·</span>
+            <strong class="table-running-total">Total: ${money(g.total)}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="table-head-right">
+        <button type="button" class="table-expand-btn" data-toggle-table="${g.table}">
+          <span>${isExpanded ? 'Hide Details' : 'View Orders'}</span>
+          ${icon(isExpanded ? 'chevron-up' : 'chevron-down')}
+        </button>
+      </div>
+    </header>
+    ${isExpanded ? `<div class="table-card-body">
+      <div class="table-orders-timeline">
+        ${g.orders.map(ord => {
+          const ordIsNew = ord.status === 'New' || ord.isNew;
+          return `<div class="table-order-batch ${ordIsNew ? 'batch-new-highlight' : ''}">
+            <div class="batch-header">
+              <div class="batch-title">
+                <strong>Order #${esc(ord.id)}</strong>
+                <span class="batch-time">${esc(ord.time || 'Today')}</span>
+                ${ordIsNew ? `<span class="order-ring-pill animate-ring">${icon('bell-ring')} New Batch</span>` : ''}
+              </div>
+              <div class="batch-actions">
+                <label style="font-size:11px;color:var(--muted);font-weight:600;">Status:</label>
+                <select class="select order-status-select" data-order="${ord.id}" data-table="${g.table}" style="height:32px;padding:2px 28px 2px 10px;">
+                  <option ${ord.status==='New'?'selected':''}>New</option>
+                  <option ${ord.status==='Preparing'?'selected':''}>Preparing</option>
+                  <option ${ord.status==='Ready'?'selected':''}>Ready</option>
+                  <option ${ord.status==='Completed'?'selected':''}>Completed</option>
+                  <option ${ord.status==='Cancelled'?'selected':''}>Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <div class="batch-items-list">
+              ${(ord.items || []).map(item => {
+                const itemIsNew = ordIsNew || item.isNew;
+                return `<div class="batch-item-row ${itemIsNew ? 'item-new-ring-row' : ''}">
+                  <div class="item-details">
+                    <span class="item-qty-badge">${item.qty}×</span>
+                    <span class="item-name-text">${esc(item.name)}</span>
+                    ${itemIsNew ? `<span class="item-ring-badge animate-ring" title="Newly added product">${icon('bell-ring')} <b>Added Product</b></span>` : ''}
+                  </div>
+                  <div class="item-price-col">
+                    <span class="item-unit-price">${money(item.price)} each</span>
+                    <strong class="item-subtotal-price">${money(item.qty * item.price)}</strong>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="table-bill-settlement-card">
+        <div class="bill-summary-left">
+          <div class="bill-title-row">
+            <span class="bill-heading">${icon('receipt')} Table ${esc(g.table)} Bill Summary</span>
+            <span class="bill-status-tag ${g.activeOrdersCount === 0 ? 'paid' : 'unpaid'}">${g.activeOrdersCount === 0 ? '✓ All Orders Settled' : '● Bill Pending Settlement'}</span>
+          </div>
+          <div class="bill-amounts-grid">
+            <div class="bill-stat"><span>Subtotal:</span><b>${money(subtotal)}</b></div>
+            <div class="bill-stat"><span>Taxes (5%):</span><b>${money(tax)}</b></div>
+            <div class="bill-stat grand"><span>Grand Total:</span><strong>${money(g.total)}</strong></div>
+          </div>
+        </div>
+        <div class="bill-actions-right">
+          ${isNewTable ? `<button type="button" class="outline btn-ack-table" data-ack-table="${g.table}">${icon('check')} Acknowledge & Start Preparing</button>` : ''}
+          <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Customer has paid bill offline. Complete order and reset table for next customer.">${icon('circle-check')} Complete & Restart Table (Bill Paid Offline)</button>
+        </div>
+      </div>
+    </div>` : ''}
+  </article>`;
+}
+
+function renderTableSections(filteredGroups) {
+  if (!filteredGroups.length) {
+    return `<div class="empty table-empty-state">
+      <div style="font-size:32px;margin-bottom:8px;">🛋️</div>
+      <strong>No table orders match your current filter.</strong>
+      <p class="panel-sub" style="margin-top:6px;">New orders placed by guests from table QR standees will automatically appear here organized by table.</p>
+    </div>`;
+  }
+  return `<div class="table-sections-grid">
+    ${filteredGroups.map(g => {
+      const isExpanded = state.expandedTables[g.table] !== undefined
+        ? !!state.expandedTables[g.table]
+        : (g.hasNew || g.activeOrdersCount > 0);
+      return tableSectionView(g, isExpanded);
+    }).join('')}
+  </div>`;
+}
+
 function ordersPage(){
-  let orders = myOrders();
-  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="order-search" placeholder="Order ID or table number"></div><select class="select" id="status-filter"><option>All orders</option>${['New','Preparing','Ready','Completed','Cancelled'].map(s=>`<option>${s}</option>`).join('')}</select></div><span class="panel-sub" id="order-count-label">${orders.length} orders today</span></div><div id="orders-table">${ordersTable(orders)}</div></section>`;
+  let groups = getCafeTableGroups();
+  let totalActiveTables = groups.filter(g => g.activeOrdersCount > 0).length;
+  let newTablesCount = groups.filter(g => g.hasNew).length;
+  let totalOrdersCount = myOrders().length;
+  let activeFilter = state.orderStatusFilter || 'all';
+  let searchQuery = (state.orderSearchQuery || '').toLowerCase().trim();
+
+  let filtered = groups.filter(g => {
+    if (activeFilter === 'new' && !g.hasNew) return false;
+    if (activeFilter === 'active' && g.activeOrdersCount === 0) return false;
+    if (activeFilter === 'completed' && g.activeOrdersCount > 0) return false;
+    if (searchQuery) {
+      const matchTable = `table ${g.table}`.includes(searchQuery) || g.table.includes(searchQuery);
+      const matchGuest = (g.customerName || '').toLowerCase().includes(searchQuery);
+      const matchOrder = g.orders.some(o => o.id.toLowerCase().includes(searchQuery) || (o.items || []).some(i => i.name.toLowerCase().includes(searchQuery)));
+      if (!matchTable && !matchGuest && !matchOrder) return false;
+    }
+    return true;
+  });
+
+  return `<section class="panel table-orders-panel">
+    <div class="orders-management-header">
+      <div class="orders-title-block">
+        <h2 class="panel-title">Table Orders & Service Board</h2>
+        <p class="panel-sub">All dining table orders neatly organized with real-time new item ring alerts & offline bill settlement</p>
+      </div>
+      <div class="orders-quick-metrics">
+        <div class="metric-pill ${newTablesCount > 0 ? 'alert' : ''}">
+          <span class="metric-icon">${icon('bell-ring')}</span>
+          <span><b>${newTablesCount}</b> New Table ${newTablesCount === 1 ? 'Alert' : 'Alerts'}</span>
+        </div>
+        <div class="metric-pill active">
+          <span class="metric-icon">${icon('armchair')}</span>
+          <span><b>${totalActiveTables}</b> Active ${totalActiveTables === 1 ? 'Table' : 'Tables'}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="metric-icon">${icon('receipt')}</span>
+          <span><b>${totalOrdersCount}</b> Orders Today</span>
+        </div>
+      </div>
+    </div>
+    <div class="section-bar orders-filter-bar">
+      <div class="filter-row">
+        <div class="search-wrap">
+          ${icon('search')}
+          <input class="search" id="order-search-input" placeholder="Search table, guest, item or Order ID..." value="${esc(state.orderSearchQuery || '')}">
+        </div>
+        <div class="filter-tabs-pills">
+          <button type="button" class="filter-tab-pill ${activeFilter === 'all' ? 'active' : ''}" data-filter-tab="all">All Tables (${groups.length})</button>
+          <button type="button" class="filter-tab-pill ${activeFilter === 'new' ? 'active' : ''} ${newTablesCount > 0 ? 'has-badge' : ''}" data-filter-tab="new">${icon('bell-ring')} Needs Action (${newTablesCount})</button>
+          <button type="button" class="filter-tab-pill ${activeFilter === 'active' ? 'active' : ''}" data-filter-tab="active">Active Dining (${totalActiveTables})</button>
+          <button type="button" class="filter-tab-pill ${activeFilter === 'completed' ? 'active' : ''}" data-filter-tab="completed">Completed (${groups.length - totalActiveTables})</button>
+        </div>
+      </div>
+      <div class="view-mode-toggle">
+        <button type="button" class="outline ${state.orderViewMode !== 'list' ? 'active' : ''}" id="view-mode-tables" title="Organized Table View">${icon('layout-grid')} Table Sections</button>
+        <button type="button" class="outline ${state.orderViewMode === 'list' ? 'active' : ''}" id="view-mode-list" title="Flat List View">${icon('list')} All Orders List</button>
+      </div>
+    </div>
+    <div id="orders-content-container">
+      ${state.orderViewMode === 'list' ? ordersTable(myOrders()) : renderTableSections(filtered)}
+    </div>
+  </section>`;
+}
+
+function restartTableOrder(tableNum) {
+  const cleanTbl = String(tableNum).padStart(2, '0');
+  const cId = cafe().id;
+  const tableOrders = db.orders.filter(o => o.cafeId === cId && String(o.table).padStart(2, '0') === cleanTbl);
+  
+  tableOrders.forEach(o => {
+    o.status = 'Completed';
+    o.isNew = false;
+    o.completedAt = Date.now();
+    o.paymentType = 'Offline (Paid at counter)';
+    if (Array.isArray(o.items)) {
+      o.items.forEach(i => i.isNew = false);
+    }
+  });
+
+  db.tableResets = db.tableResets || {};
+  db.tableResets[`${cId}_${cleanTbl}`] = Date.now();
+
+  if (state.cafeId === cId && String(state.table).padStart(2, '0') === cleanTbl) {
+    state.placedOrderIds = [];
+    state.confirmed = null;
+    state.cart = [];
+  }
+
+  save();
+  playNotificationSound();
+  toast(`🎉 Table ${cleanTbl} bill settled offline & table restarted for next guest!`);
+  render();
+}
+
+function acknowledgeTableOrders(tableNum) {
+  const cleanTbl = String(tableNum).padStart(2, '0');
+  const cId = cafe().id;
+  const tableOrders = db.orders.filter(o => o.cafeId === cId && String(o.table).padStart(2, '0') === cleanTbl);
+  tableOrders.forEach(o => {
+    if (o.status === 'New') o.status = 'Preparing';
+    o.isNew = false;
+    if (Array.isArray(o.items)) {
+      o.items.forEach(i => i.isNew = false);
+    }
+  });
+  save();
+  toast(`Table ${cleanTbl} orders acknowledged & marked as Preparing`);
+  render();
 }
 
 function ordersTable(data){
@@ -1233,10 +1560,84 @@ function bind(){
   $('#order-search')?.addEventListener('input', filterOrders);
   $('#status-filter')?.addEventListener('change', filterOrders);
   
+  // Table Section Controls & Ring Actions
+  $$('[data-toggle-table]').forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const tbl = el.dataset.toggleTable;
+      const curExp = state.expandedTables[tbl] !== undefined 
+        ? state.expandedTables[tbl] 
+        : true;
+      state.expandedTables[tbl] = !curExp;
+      render();
+    };
+  });
+
+  $$('.btn-complete-table').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      restartTableOrder(b.dataset.completeTable);
+    };
+  });
+
+  $$('.btn-ack-table').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      acknowledgeTableOrders(b.dataset.ackTable);
+    };
+  });
+
+  $$('.order-status-select').forEach(sel => {
+    sel.onchange = (e) => {
+      e.stopPropagation();
+      let o = db.orders.find(ord => ord.id === sel.dataset.order);
+      if(o){
+        o.status = sel.value;
+        if(o.status !== 'New'){
+          o.isNew = false;
+          if(Array.isArray(o.items)){
+            o.items.forEach(i => i.isNew = false);
+          }
+        }
+        save();
+        toast(`Order ${o.id} status updated to ${o.status}`);
+        render();
+      }
+    };
+  });
+
+  $('#order-search-input')?.addEventListener('input', (e) => {
+    state.orderSearchQuery = e.target.value;
+    render();
+  });
+
+  $$('.filter-tab-pill').forEach(btn => {
+    btn.onclick = () => {
+      state.orderStatusFilter = btn.dataset.filterTab;
+      render();
+    };
+  });
+
+  $('#view-mode-tables')?.addEventListener('click', () => {
+    state.orderViewMode = 'tables';
+    render();
+  });
+
+  $('#view-mode-list')?.addEventListener('click', () => {
+    state.orderViewMode = 'list';
+    render();
+  });
+  
   $$('.order-status').forEach(sel => sel.onchange = () => {
     let o = db.orders.find(ord => ord.id === sel.dataset.order);
     if(o){
       o.status = sel.value;
+      if(o.status !== 'New'){
+        o.isNew = false;
+        if(Array.isArray(o.items)){
+          o.items.forEach(i => i.isNew = false);
+        }
+      }
       save();
       toast(`${o.id} is now ${o.status}`);
       filterOrders();
@@ -1642,7 +2043,7 @@ async function placeOrder(){
   if(!customerName) return toast('Please enter your name');
   let items = state.cart.map(x => {
     let m = myMenu().find(m => m.id === x.id);
-    return { name: m.name, qty: x.qty, price: m.price };
+    return { name: m.name, qty: x.qty, price: m.price, isNew: true };
   });
   let subtotal = items.reduce((a, i) => a + i.qty * i.price, 0);
   let tax = Math.round(subtotal * 0.05);
@@ -1656,6 +2057,7 @@ async function placeOrder(){
     items,
     total: subtotal + tax,
     status: 'New',
+    isNew: true,
     time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     date: 'Today',
     timestamp: Date.now()
