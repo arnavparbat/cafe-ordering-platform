@@ -1355,24 +1355,35 @@ a { text-decoration: none; color: inherit; }
   color: var(--coffee);
 }
 .session-cumulative-card {
-  background: #faf6f0;
-  border: 1.5px solid #dfcfbc;
+  background: #fbf7f1;
+  border: 1.5px solid #dfcebc;
   border-radius: 18px;
-  padding: 18px;
+  padding: 20px;
   margin: 18px 0;
   text-align: left;
+  box-shadow: 0 4px 18px rgba(45, 30, 20, 0.06);
+  width: 100%;
+}
+.guest-total-bill-card {
+  background: linear-gradient(180deg, #fdfbf7 0%, #f7f1e6 100%);
+  border: 2px solid #d5bc9f;
+  box-shadow: 0 6px 22px rgba(45, 30, 20, 0.08);
 }
 .session-cumulative-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  gap: 10px;
 }
 .session-cumulative-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 17px;
   font-family: var(--serif);
   color: var(--coffee);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .session-cumulative-badge {
   background: #2a1811;
@@ -1381,21 +1392,89 @@ a { text-decoration: none; color: inherit; }
   font-weight: 700;
   padding: 4px 10px;
   border-radius: 14px;
+  white-space: nowrap;
+}
+.session-order-count-chip {
+  background: #ede3d5;
+  color: #654321;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+}
+.guest-qty-pill {
+  background: #ecdcc9;
+  color: #55341c;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-right: 4px;
+}
+.item-unit-pill {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+.guest-bill-breakdown {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #d5c4b1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guest-bill-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.guest-bill-row b {
+  color: var(--coffee-dark);
 }
 .session-cumulative-total {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
-  margin-top: 12px;
-  border-top: 2px solid #dfcfbc;
+  margin-top: 8px;
+  border-top: 2px solid #d5bc9f;
   font-size: 15px;
   font-weight: 700;
   color: var(--coffee-dark);
 }
-.session-cumulative-total strong {
-  font-size: 18px;
-  color: #1e7048;
+.grand-total-amount {
+  font-size: 22px;
+  color: #1b683f;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.latest-batch-card {
+  border-color: #d89c44 !important;
+  box-shadow: 0 4px 16px rgba(216, 156, 68, 0.15) !important;
+}
+.latest-tag-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8c4e0b;
+  background: #fdf1dd;
+  border: 1px solid #f2ce8a;
+  padding: 2px 7px;
+  border-radius: 8px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.batch-num-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  background: #f0e6da;
+  padding: 2px 6px;
+  border-radius: 6px;
+  margin-left: 6px;
 }
 
 /* Table-Organized Order Management & Ring Symbol Alerts */
