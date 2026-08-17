@@ -108,15 +108,15 @@ const seed = {
 let db = JSON.parse(localStorage.getItem('juniper-db') || 'null') || seed;
 
 // Function to save locally and broadcast to cloud backend for all devices
-function save() {
+function save(immediate = false) {
   localStorage.setItem('juniper-db', JSON.stringify(db));
-  pushCloudDb();
+  pushCloudDb(immediate);
 }
 
 let pushTimeout = null;
-function pushCloudDb() {
+function pushCloudDb(immediate = false) {
   clearTimeout(pushTimeout);
-  pushTimeout = setTimeout(async () => {
+  const executePush = async () => {
     try {
       await fetch('/api/db', {
         method: 'POST',
@@ -124,7 +124,12 @@ function pushCloudDb() {
         body: JSON.stringify(db)
       });
     } catch(e){}
-  }, 100);
+  };
+  if (immediate) {
+    executePush();
+  } else {
+    pushTimeout = setTimeout(executePush, 50);
+  }
 }
 
 db.platform = Object.assign({
@@ -2134,25 +2139,22 @@ async function placeOrder(){
   }
   state.confirmed = o;
   state.orderPlacedAt = Date.now();
-  save();
+  save(true);
   playToingSound();
   try {
-    let response = await fetch('/api/orders', {
+    fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...o, cafeName: cafe().name, subtotal, tax, createdAt: new Date().toLocaleString('en-IN') })
-    });
-    if(!response.ok) throw new Error('Export failed');
-  } catch(error) {
-    // Fallback safely
-  }
+    }).catch(()=>{});
+  } catch(error) {}
   state.cart = [];
   state.cartOpen = false;
   state.view = 'confirmation';
   render();
 }
 
-// Full Cloud Cross-Device Synchronization
+// Full Cloud Cross-Device Real-Time Synchronization
 let isSyncing = false;
 let lastDbSnapshot = JSON.stringify(db);
 
@@ -2160,23 +2162,35 @@ async function syncCloudDb(){
   if(isSyncing) return;
   isSyncing = true;
   try {
-    const res = await fetch('/api/db');
+    const res = await fetch(`/api/db?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store' }
+    });
     if(res.ok){
       const serverDb = await res.json();
       if(serverDb && typeof serverDb === 'object' && serverDb.cafes && serverDb.menu){
         const serverSnapshot = JSON.stringify(serverDb);
         if(serverSnapshot !== lastDbSnapshot){
-          const oldLen = db.orders ? db.orders.length : 0;
+          const oldOrders = db.orders || [];
+          const oldIds = new Set(oldOrders.map(o => o.id));
           
           db = serverDb;
           lastDbSnapshot = serverSnapshot;
           localStorage.setItem('juniper-db', JSON.stringify(db));
 
+          // Check if cafe received new orders
+          const newOrders = (db.orders || []).filter(o => !oldIds.has(o.id) && o.cafeId === cafe().id);
+          if(state.role === 'cafe' && newOrders.length > 0){
+            playNotificationSound();
+            const latestNew = newOrders[0];
+            toast(`🔔 New Order received from Table ${latestNew.table || '01'} (${latestNew.customerName || 'Guest'})!`);
+          }
+
           // Check if any guest session orders updated
           const sessionOrders = getSessionOrders();
           let orderUpdated = false;
           sessionOrders.forEach(ord => {
-            let updated = db.orders.find(o => o.id === ord.id);
+            let updated = (db.orders || []).find(o => o.id === ord.id);
             if(updated && updated.status !== ord.status){
               orderUpdated = true;
               playNotificationSound();
@@ -2184,25 +2198,11 @@ async function syncCloudDb(){
             }
           });
 
-          if(orderUpdated && (state.view === 'confirmation' || state.view === 'customer')){
-            render();
-          }
-
-          // Check if cafe received new orders
-          if(state.role === 'cafe' && db.orders && db.orders.length > oldLen){
-            playNotificationSound();
-            toast(`🔔 New order received from guest!`);
-          }
-
-          // Update active views
-          if(state.view === 'dashboard' && state.page === 'orders'){
-            filterOrders();
-          } else if(state.view === 'dashboard') {
-            render();
-          }
+          // Instantly re-render active interface
+          render();
         }
       } else {
-        pushCloudDb();
+        pushCloudDb(true);
       }
     }
   } catch(e){}
@@ -2211,22 +2211,40 @@ async function syncCloudDb(){
   }
 }
 
-// Cross-tab real-time sync via StorageEvent on same device
+// Cross-tab real-time sync via StorageEvent on same device (instant <1ms sync)
 window.addEventListener('storage', e => {
   if(e.key === 'juniper-db'){
     try {
       const freshDb = JSON.parse(e.newValue);
       if(freshDb && freshDb.orders){
+        const oldOrders = db.orders || [];
+        const oldIds = new Set(oldOrders.map(o => o.id));
+        const newOrders = (freshDb.orders || []).filter(o => !oldIds.has(o.id) && o.cafeId === cafe().id);
+
         db = freshDb;
         lastDbSnapshot = JSON.stringify(db);
+        
+        if(state.role === 'cafe' && newOrders.length > 0){
+          playNotificationSound();
+          const latestNew = newOrders[0];
+          toast(`🔔 New Order from Table ${latestNew.table || '01'} (${latestNew.customerName || 'Guest'})!`);
+        }
         render();
       }
     } catch(err){}
   }
 });
 
-// Run live cross-device polling every 2 seconds
-setInterval(syncCloudDb, 2000);
+// Fast 1-second cloud polling for instantaneous multi-device order alerts
+setInterval(syncCloudDb, 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    syncCloudDb();
+  }
+});
+window.addEventListener('focus', () => {
+  syncCloudDb();
+});
 syncCloudDb();
 
 render();
