@@ -1236,9 +1236,10 @@ function renderTableSections(filteredGroups) {
   }
   return `<div class="table-sections-grid">
     ${filteredGroups.map(g => {
+      // Auto-expand any active table or table with new orders so full menu request and items are open by default
       const isExpanded = state.expandedTables[g.table] !== undefined
         ? !!state.expandedTables[g.table]
-        : (!g.isVacant && (g.hasNew || g.activeOrdersCount > 0));
+        : (!g.isVacant);
       return tableSectionView(g, isExpanded);
     }).join('')}
   </div>`;
@@ -2183,7 +2184,9 @@ async function syncCloudDb(){
           if(state.role === 'cafe' && newOrders.length > 0){
             playNotificationSound();
             const latestNew = newOrders[0];
-            toast(`🔔 New Order received from Table ${latestNew.table || '01'} (${latestNew.customerName || 'Guest'})!`);
+            const tbl = String(latestNew.table || '01').padStart(2, '0');
+            state.expandedTables[tbl] = true;
+            toast(`🔔 New Order received from Table ${tbl} (${latestNew.customerName || 'Guest'})!`);
           }
 
           // Check if any guest session orders updated
@@ -2227,7 +2230,9 @@ window.addEventListener('storage', e => {
         if(state.role === 'cafe' && newOrders.length > 0){
           playNotificationSound();
           const latestNew = newOrders[0];
-          toast(`🔔 New Order from Table ${latestNew.table || '01'} (${latestNew.customerName || 'Guest'})!`);
+          const tbl = String(latestNew.table || '01').padStart(2, '0');
+          state.expandedTables[tbl] = true;
+          toast(`🔔 New Order from Table ${tbl} (${latestNew.customerName || 'Guest'})!`);
         }
         render();
       }
