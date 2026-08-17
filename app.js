@@ -258,6 +258,7 @@ const defaultState = {
   qrToken: null,
   tamperAttempt: null,
   tableFromQr: false,
+  placedOrderIds: [],
   confirmed: null,
   orderPlacedAt: null,
   cartOpen: false,
@@ -299,6 +300,7 @@ function saveSession(){
       qrToken: state.qrToken || null,
       tamperAttempt: state.tamperAttempt || null,
       tableFromQr: !!state.tableFromQr,
+      placedOrderIds: state.placedOrderIds || [],
       confirmed: state.confirmed || null,
       orderPlacedAt: state.orderPlacedAt || null,
       cartOpen: !!state.cartOpen,
@@ -346,19 +348,29 @@ if (routing.isLogin) {
 }
 saveSession();
 
-// Helper to get active confirmed order if placed within the 1-hour window
-function getActiveOrder(){
-  if(!state.confirmed) return null;
-  const placedAt = state.orderPlacedAt || (state.confirmed.timestamp || 0);
-  if(placedAt && (Date.now() - placedAt > SESSION_DURATION_MS)){
-    state.confirmed = null;
-    state.orderPlacedAt = null;
-    saveSession();
-    return null;
+// Helper to get all active table orders placed during this guest session
+function getSessionOrders(){
+  let ids = state.placedOrderIds || [];
+  if (!ids.length && state.confirmed) {
+    ids = [state.confirmed.id];
   }
-  const latest = db.orders.find(o => o.id === state.confirmed.id);
-  if(latest) state.confirmed = latest;
-  return state.confirmed;
+  if (state.table && state.cafeId) {
+    const cleanTbl = String(state.table).padStart(2, '0');
+    const tableOrders = db.orders.filter(o => o.cafeId === state.cafeId && String(o.table).padStart(2, '0') === cleanTbl);
+    const existingIds = new Set(ids);
+    tableOrders.forEach(o => {
+      if (!existingIds.has(o.id) && (Date.now() - (o.timestamp || 0) < SESSION_DURATION_MS)) {
+        ids.push(o.id);
+      }
+    });
+  }
+  state.placedOrderIds = [...new Set(ids)];
+  return state.placedOrderIds.map(id => db.orders.find(o => o.id === id)).filter(Boolean);
+}
+
+function getActiveOrder(){
+  const orders = getSessionOrders();
+  return orders[0] || state.confirmed || null;
 }
 
 const cafe = () => db.cafes.find(c => c.id === state.cafeId) || db.cafes[0];
@@ -985,14 +997,20 @@ function customerView(){
   let c = cafe(), menu = myMenu(), cats = ['All', ...categories()];
   let locationSummary = c.address ? (c.address.split(',')[0].trim() || c.address) : 'Local Café';
   let fullAddress = c.address || 'Park Street, Kolkata';
-  let activeOrder = getActiveOrder();
   let cartCount = state.cart.reduce((a,i)=>a+i.qty, 0);
   let cartSubtotal = state.cart.reduce((a,x)=>{
     let itm = myMenu().find(m=>m.id===x.id);
     return a + (itm ? itm.price * x.qty : 0);
   }, 0);
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${activeOrder ? `<div class="active-order-banner ${statusClass(activeOrder.status)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Order <b>${esc(activeOrder.id)}</b>: ${esc(activeOrder.status)}</span><span class="banner-sub">${activeOrder.status === 'Ready' ? '🎉 Order is ready for you!' : activeOrder.status === 'Preparing' ? '☕ Baristas are preparing your items' : 'Order received at the bar'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track & Wi-Fi</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
+  const sessionOrders = getSessionOrders();
+  const latestOrder = sessionOrders[0];
+  const hasReady = sessionOrders.some(o => o.status === 'Ready');
+  const hasPrep = sessionOrders.some(o => o.status === 'Preparing' || o.status === 'Processing');
+  const bannerStatus = hasReady ? 'Ready' : hasPrep ? 'Preparing' : (latestOrder?.status || 'New');
+  const totalItemsCount = sessionOrders.reduce((sum, ord) => sum + (ord.items || []).reduce((isum, itm) => isum + itm.qty, 0), 0);
+
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;display:inline-flex;align-items:center;gap:5px;" title="View all ordered items and status">${icon('clock-3')} <span>Orders (${sessionOrders.length})</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">${sessionOrders.length === 1 ? `Order <b>${esc(latestOrder.id)}</b>: ${esc(latestOrder.status)}` : `<b>${sessionOrders.length} Orders Active</b> for Table ${esc(state.table)} (${totalItemsCount} items)`}</span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track All Orders (${sessionOrders.length})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
 }
 
 function cartDrawer(){
@@ -1002,15 +1020,35 @@ function cartDrawer(){
 }
 
 function confirmationView(){
-  let o = getActiveOrder() || {};
   let c = cafe();
   let locationSummary = c.address ? (c.address.split(',')[0].trim() || c.address) : 'Local Café';
-  
-  let status = o.status || 'New';
-  let isPrep = ['Preparing', 'Processing', 'Ready', 'Completed'].includes(status);
-  let isReady = ['Ready', 'Completed'].includes(status);
-  let isDone = status === 'Completed';
-  
+  const sessionOrders = getSessionOrders();
+  const latestOrder = sessionOrders[0] || state.confirmed || {};
+  const status = latestOrder.status || 'New';
+
+  const isPrep = ['Preparing', 'Processing', 'Ready', 'Completed'].includes(status);
+  const isReady = ['Ready', 'Completed'].includes(status);
+  const isDone = status === 'Completed';
+
+  // Aggregate all items across all session orders for Table XX
+  const itemMap = new Map();
+  let grandTotal = 0;
+  let totalItemsCount = 0;
+
+  sessionOrders.forEach(ord => {
+    grandTotal += (ord.total || 0);
+    (ord.items || []).forEach(itm => {
+      totalItemsCount += itm.qty;
+      if (itemMap.has(itm.name)) {
+        const prev = itemMap.get(itm.name);
+        itemMap.set(itm.name, { name: itm.name, qty: prev.qty + itm.qty, price: itm.price });
+      } else {
+        itemMap.set(itm.name, { name: itm.name, qty: itm.qty, price: itm.price });
+      }
+    });
+  });
+  const allOrderedItems = Array.from(itemMap.values());
+
   let statusMessage = 'We’ve sent your order straight to the bar. Make yourself comfortable.';
   let statusBadgeColor = '#9a671f';
   let statusBadgeBg = '#fbf2dc';
@@ -1022,12 +1060,12 @@ function confirmationView(){
     statusBadgeBg = '#f1eafa';
     statusBadgeText = 'Preparing now';
   } else if (status === 'Ready') {
-    statusMessage = '🎉 Your order is ready! Please collect it at the counter or enjoy table service.';
+    statusMessage = '🎉 Your items are ready! Please collect at the counter or enjoy table service.';
     statusBadgeColor = '#2e7a57';
     statusBadgeBg = '#e2f4ea';
     statusBadgeText = 'Ready for you';
   } else if (status === 'Completed') {
-    statusMessage = 'Order fulfilled. Thank you for dining with us!';
+    statusMessage = 'All items fulfilled. Thank you for dining with us!';
     statusBadgeColor = '#597263';
     statusBadgeBg = '#e9f0eb';
     statusBadgeText = 'Completed';
@@ -1038,7 +1076,57 @@ function confirmationView(){
     statusBadgeText = 'Cancelled';
   }
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="outline" id="browse-menu-btn" style="padding:6px 12px;font-size:12px;border-radius:18px;">${icon('utensils')} Menu</button><button class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="${isReady ? 'background:#d7eee1;color:#287449;' : isPrep ? 'background:#ece1fa;color:#6b3bb8;' : ''}">${icon(isReady ? 'bell' : isPrep ? 'coffee' : 'check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${statusBadgeColor};background:${statusBadgeBg};padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">${statusBadgeText}</span><h1>Order ${status === 'Ready' ? 'is Ready!' : status === 'Preparing' ? 'in Progress' : status === 'Completed' ? 'Completed' : 'placed successfully'}</h1><p>${statusMessage}</p><div class="receipt"><div class="receipt-top"><strong>${esc(o.id || '')}</strong><span>Table ${esc(o.table || '')}</span></div>${(o.items || []).map(i=>`<div class="receipt-item"><span>${i.qty}× ${esc(i.name)}</span><span>${money(i.price*i.qty)}</span></div>`).join('')}<div class="receipt-top" style="border-top:1px solid #ded5ca;padding-top:10px;margin-top:10px"><strong>Total</strong><strong>${money(o.total || 0)}</strong></div></div><div class="tracker"><div class="track-step active">Received</div><div class="track-step ${isPrep ? 'active' : ''}">Preparing</div><div class="track-step ${isReady ? 'active' : ''}">Ready</div><div class="track-step ${isDone ? 'active' : ''}">Completed</div></div><div class="wifi-box"><h3>${icon('wifi')} Café Wi-Fi</h3><div class="wifi-detail">Network: <b>${esc(c.wifi.ssid)}</b></div><div class="wifi-detail">Password: <b id="wifi-pass">${esc(c.wifi.password)}</b> <button class="outline" id="copy-wifi" style="padding:4px 8px;margin-left:6px;font-size:11px;border-radius:6px;">Copy</button></div></div><div style="display:flex;gap:10px;justify-content:center;margin-top:22px;"><button class="primary" id="new-order" style="width:100%;max-width:280px;border-radius:12px;">Back to Menu</button></div></section></main>`;
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} + Order More</button><button class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="${isReady ? 'background:#d7eee1;color:#287449;' : isPrep ? 'background:#ece1fa;color:#6b3bb8;' : ''}">${icon(isReady ? 'bell' : isPrep ? 'coffee' : 'check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${statusBadgeColor};background:${statusBadgeBg};padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">${statusBadgeText}</span><h1>${sessionOrders.length > 1 ? `Table ${esc(state.table)} Orders (${sessionOrders.length})` : `Order ${status === 'Ready' ? 'is Ready!' : status === 'Preparing' ? 'in Progress' : status === 'Completed' ? 'Completed' : 'placed successfully'}`}</h1><p>${statusMessage}</p><div class="session-orders-wrap"><h3 style="margin:0 0 4px;font-size:15px;font-family:var(--serif);color:var(--coffee-dark);display:flex;justify-content:space-between;align-items:center;"><span>${icon('clock-3')} Your Active Orders for Table ${esc(state.table)}</span><span class="session-cumulative-badge">${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order' : 'Orders'}</span></h3>${sessionOrders.map((ord, idx) => `
+    <article class="session-order-card">
+      <div class="session-order-head">
+        <div class="session-order-id-group">
+          <span class="session-order-id">Order #${esc(ord.id)} ${idx === 0 ? '<span style="font-size:10.5px;color:#8f4d0a;background:#fdf2e4;padding:2px 6px;border-radius:6px;margin-left:4px;">Latest</span>' : ''}</span>
+          <span class="session-order-time">${icon('clock-3')} Placed at ${esc(ord.time || 'Today')} · Table ${esc(ord.table)}</span>
+        </div>
+        <span class="status ${statusClass(ord.status)}">${ord.status === 'Ready' ? '🎉 Ready' : ord.status === 'Preparing' ? '☕ Preparing' : ord.status}</span>
+      </div>
+
+      <div class="order-mini-tracker">
+        <div class="tracker-step ${['New','Preparing','Processing','Ready','Completed'].includes(ord.status)?'active':''}">Received</div>
+        <div class="tracker-step ${['Preparing','Processing','Ready','Completed'].includes(ord.status)?(ord.status==='Preparing'?'preparing active':'active'):''}">Preparing</div>
+        <div class="tracker-step ${['Ready','Completed'].includes(ord.status)?(ord.status==='Ready'?'ready active':'active'):''}">Ready</div>
+        <div class="tracker-step ${ord.status==='Completed'?'active':''}">Served</div>
+      </div>
+
+      <div class="session-order-items">
+        ${(ord.items || []).map(i => `
+          <div class="session-item-row">
+            <span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span>
+            <span class="session-item-price">${money(i.price * i.qty)}</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="session-order-subtotal">
+        <span>Order Amount (incl. tax)</span>
+        <strong>${money(ord.total)}</strong>
+      </div>
+    </article>
+  `).join('')}</div>${sessionOrders.length > 1 ? `
+    <div class="session-cumulative-card">
+      <div class="session-cumulative-head">
+        <h3>${icon('receipt')} All Items Ordered at Table ${esc(state.table)}</h3>
+        <span class="session-cumulative-badge">${totalItemsCount} total items</span>
+      </div>
+      <div class="session-order-items">
+        ${allOrderedItems.map(i => `
+          <div class="session-item-row">
+            <span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span>
+            <span class="session-item-price">${money(i.price * i.qty)}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="session-cumulative-total">
+        <span>Total Table Bill</span>
+        <strong>${money(grandTotal)}</strong>
+      </div>
+    </div>
+  ` : ''}<div class="wifi-box"><h3>${icon('wifi')} Café Wi-Fi</h3><div class="wifi-detail">Network: <b>${esc(c.wifi.ssid)}</b></div><div class="wifi-detail">Password: <b id="wifi-pass">${esc(c.wifi.password)}</b> <button class="outline" id="copy-wifi" style="padding:4px 8px;margin-left:6px;font-size:11px;border-radius:6px;">Copy</button></div></div><div style="display:flex;gap:10px;justify-content:center;margin-top:22px;"><button class="primary" id="new-order" style="width:100%;max-width:320px;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;">${icon('plus')} + Order More Items for Table ${esc(state.table)}</button></div></section></main>`;
 }
 
 function bind(){
@@ -1316,6 +1404,21 @@ function bind(){
     render();
   });
 
+  $('#nav-btn-orders-tracker')?.addEventListener('click', () => {
+    state.view = 'confirmation';
+    render();
+  });
+
+  $('#browse-menu-btn')?.addEventListener('click', () => {
+    state.view = 'customer';
+    render();
+  });
+
+  $('#banner-track-btn')?.addEventListener('click', () => {
+    state.view = 'confirmation';
+    render();
+  });
+
   $('#place-order')?.addEventListener('click', placeOrder);
   $('#customer-home')?.addEventListener('click', () => {
     state.view = 'customer';
@@ -1480,9 +1583,9 @@ function printSingleStandee(c, tableNum) {
     .standee { width: 340px; border: 3px solid #2a1811; border-radius: 20px; padding: 28px 24px; text-align: center; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
     .inner { border: 1.5px solid #c8a77a; border-radius: 14px; padding: 22px 16px; }
     h1 { font-family: 'Playfair Display', serif; font-size: 24px; margin: 0 0 4px; color: #2a1811; }
-    .table-pill { display: inline-block; background: #2a1811; color: #fff; font-size: 15px; font-weight: 700; padding: 6px 18px; border-radius: 16px; margin: 10px 0; letter-spacing: 1px; }
-    .tagline { font-size: 12px; color: #7a6555; margin: 6px 0 14px; font-weight: 600; }
-    .qr-img { display: block; margin: 10px auto; border-radius: 8px; width: 180px; height: 180px; }
+    .table-pill { display: inline-block; background: #2a1811; color: #fff; font-size: 14px; font-weight: 700; padding: 6px 18px; border-radius: 20px; margin: 8px 0; letter-spacing: 0.5px; }
+    .tagline { font-size: 11.5px; color: #6b5344; margin: 4px 0 12px; font-weight: 600; }
+    .qr-img { display: block; margin: 12px auto; border-radius: 8px; width: 170px; height: 170px; }
     .steps { display: flex; justify-content: space-between; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 10px 0; margin: 16px 0; font-size: 11px; font-weight: 600; color: #443328; }
     .wifi { background: #fbf8f3; border: 1px dashed #d5c3b0; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; text-align: left; color: #4a3b30; }
     @media print { body { padding: 0; } .standee { box-shadow: none; border-color: #000; } }
@@ -1554,9 +1657,16 @@ async function placeOrder(){
     total: subtotal + tax,
     status: 'New',
     time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-    date: 'Today'
+    date: 'Today',
+    timestamp: Date.now()
   };
   db.orders.unshift(o);
+  state.placedOrderIds = state.placedOrderIds || [];
+  if(!state.placedOrderIds.includes(o.id)){
+    state.placedOrderIds.unshift(o.id);
+  }
+  state.confirmed = o;
+  state.orderPlacedAt = Date.now();
   save();
   playToingSound();
   try {
@@ -1569,8 +1679,6 @@ async function placeOrder(){
   } catch(error) {
     // Fallback safely
   }
-  state.confirmed = o;
-  state.orderPlacedAt = Date.now();
   state.cart = [];
   state.cartOpen = false;
   state.view = 'confirmation';
@@ -1592,24 +1700,25 @@ async function syncCloudDb(){
         const serverSnapshot = JSON.stringify(serverDb);
         if(serverSnapshot !== lastDbSnapshot){
           const oldLen = db.orders ? db.orders.length : 0;
-          let oldConfirmedStatus = state.confirmed?.status;
           
           db = serverDb;
           lastDbSnapshot = serverSnapshot;
           localStorage.setItem('juniper-db', JSON.stringify(db));
 
-          // Check if guest confirmed order updated
-          if(state.confirmed){
-            let updated = db.orders.find(o => o.id === state.confirmed.id);
-            if(updated && updated.status !== oldConfirmedStatus){
-              state.confirmed = updated;
-              saveSession();
-              if(state.view === 'confirmation' || state.view === 'customer'){
-                render();
-              }
+          // Check if any guest session orders updated
+          const sessionOrders = getSessionOrders();
+          let orderUpdated = false;
+          sessionOrders.forEach(ord => {
+            let updated = db.orders.find(o => o.id === ord.id);
+            if(updated && updated.status !== ord.status){
+              orderUpdated = true;
               playNotificationSound();
               toast(`🔔 Order ${updated.id} is now ${updated.status}!`);
             }
+          });
+
+          if(orderUpdated && (state.view === 'confirmation' || state.view === 'customer')){
+            render();
           }
 
           // Check if cafe received new orders
@@ -1621,7 +1730,7 @@ async function syncCloudDb(){
           // Update active views
           if(state.view === 'dashboard' && state.page === 'orders'){
             filterOrders();
-          } else {
+          } else if(state.view === 'dashboard') {
             render();
           }
         }
