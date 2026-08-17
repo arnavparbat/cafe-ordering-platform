@@ -303,24 +303,97 @@ function promptCopy(text) {
   prompt('Copy this link:', text);
 }
 
-function playNotificationSound(){
-  try {
+// Shared Audio Context for instant and unblocked playback
+let sharedAudioCtx = null;
+function getAudioContext() {
+  if (!sharedAudioCtx) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if(!AudioCtx) return;
-    const ctx = new AudioCtx();
-    if(ctx.state === 'suspended') ctx.resume();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-  } catch(e){}
+    if (AudioCtx) sharedAudioCtx = new AudioCtx();
+  }
+  if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+    sharedAudioCtx.resume();
+  }
+  return sharedAudioCtx;
+}
+
+// Unlock audio on first user touch/click for mobile browsers
+['click', 'touchstart', 'keydown'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    try { getAudioContext(); } catch(e){}
+  }, { once: true, passive: true });
+});
+
+// Loud, punchy "Toing!" & Cafe Bell sound synthesizer
+function playToingSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const now = ctx.currentTime;
+
+    // Master Gain & Limiter/Compressor for clean loud sound
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-12, now);
+    compressor.knee.setValueAtTime(4, now);
+    compressor.ratio.setValueAtTime(12, now);
+    compressor.attack.setValueAtTime(0.002, now);
+    compressor.release.setValueAtTime(0.25, now);
+
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(1.0, now); // Loud max level
+    masterGain.connect(compressor);
+    compressor.connect(ctx.destination);
+
+    // Tone 1: Springy "Toing" Pitch Bending Wave (Triangle + Sine)
+    const oscToing = ctx.createOscillator();
+    const gainToing = ctx.createGain();
+    oscToing.type = 'triangle';
+    oscToing.frequency.setValueAtTime(260, now);
+    oscToing.frequency.exponentialRampToValueAtTime(880, now + 0.08); // Sharp upward 'Toing' spring
+    oscToing.frequency.exponentialRampToValueAtTime(440, now + 0.32); // Resonant decay
+    gainToing.gain.setValueAtTime(0.95, now);
+    gainToing.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    oscToing.connect(gainToing);
+    gainToing.connect(masterGain);
+
+    // Tone 2: Bright Crisp Chime Bell (C6 - 1046.5 Hz)
+    const oscBell1 = ctx.createOscillator();
+    const gainBell1 = ctx.createGain();
+    oscBell1.type = 'sine';
+    oscBell1.frequency.setValueAtTime(1046.5, now + 0.03);
+    gainBell1.gain.setValueAtTime(0.001, now);
+    gainBell1.gain.setValueAtTime(0.85, now + 0.04);
+    gainBell1.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    oscBell1.connect(gainBell1);
+    gainBell1.connect(masterGain);
+
+    // Tone 3: High Resonance Harmonic (E6 - 1318.5 Hz)
+    const oscBell2 = ctx.createOscillator();
+    const gainBell2 = ctx.createGain();
+    oscBell2.type = 'sine';
+    oscBell2.frequency.setValueAtTime(1318.5, now + 0.08);
+    gainBell2.gain.setValueAtTime(0.001, now);
+    gainBell2.gain.setValueAtTime(0.75, now + 0.09);
+    gainBell2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+    oscBell2.connect(gainBell2);
+    gainBell2.connect(masterGain);
+
+    // Play all oscillators
+    oscToing.start(now);
+    oscToing.stop(now + 0.45);
+    oscBell1.start(now + 0.03);
+    oscBell1.stop(now + 0.65);
+    oscBell2.start(now + 0.08);
+    oscBell2.stop(now + 0.75);
+  } catch(e) {
+    console.warn('Audio playback not ready:', e);
+  }
+}
+
+// Alias for backwards-compatibility
+function playNotificationSound() {
+  playToingSound();
 }
 
 function statusClass(s){ return (s || '').toLowerCase().replace(' ', ''); }
@@ -1062,6 +1135,7 @@ async function placeOrder(){
   };
   db.orders.unshift(o);
   save();
+  playToingSound();
   try {
     let response = await fetch('/api/orders', {
       method: 'POST',
