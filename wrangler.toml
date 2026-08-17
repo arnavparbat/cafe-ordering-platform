@@ -1,0 +1,16 @@
+name = "cafe-ordering-platform"
+main = "worker.js"
+compatibility_date = "2026-08-17"
+account_id = "0a5aa15e95d3a57dfd17c708e5560f27"
+
+[assets]
+directory = "public"
+run_worker_first = ["/api/*", "/exports/*"]
+
+[[durable_objects.bindings]]
+name = "ORDER_STORE"
+class_name = "OrderStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OrderStore"]
