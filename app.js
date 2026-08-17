@@ -560,71 +560,69 @@ function downloadCanvasAsPng(canvas, filename = 'qr-code.png') {
   }
 }
 
-// In-App Interactive Camera QR Code Scanner
-let activeScanner = null;
-let currentFacingMode = "environment";
+// Full-Screen Live Camera QR Gatekeeper View for Guests
+function qrGatekeeperView(){
+  let c = cafe();
+  let brandName = db.platform.companyName || "Eat 'N Greet";
+  let brandInitial = brandName.charAt(0).toUpperCase() || 'E';
 
-function openQrScannerModal() {
-  modal(`
-    <div class="scanner-modal-wrap">
-      <div class="scanner-head">
-        <h3>${icon('qr-code')} Scan Dining Table QR</h3>
-        <button class="icon-btn" id="scanner-modal-close">${icon('x')}</button>
-      </div>
-      <div class="scanner-body">
-        <div class="scanner-viewport-wrap">
-          <div id="qr-camera-viewport"></div>
-          <div class="scanner-target-frame">
-            <div class="scanner-target-corners"></div>
+  return `
+    <div class="gatekeeper-layout">
+      <nav class="gatekeeper-nav">
+        <div class="gatekeeper-brand">
+          <span class="gatekeeper-brand-mark">${brandInitial}</span>
+          <span>${esc(brandName)}</span>
+        </div>
+        <button class="staff-link-btn" id="go-login" title="Staff Portal">
+          ${icon('key-round')} <span class="staff-label">Staff Portal</span>
+        </button>
+      </nav>
+
+      <main class="gatekeeper-container">
+        <div class="gatekeeper-card">
+          <div class="gatekeeper-badge">${icon('camera')} Live Camera Scanner</div>
+          <h1 class="gatekeeper-title">Scan Table QR Standee</h1>
+          <p class="gatekeeper-subtitle">Welcome to ${esc(c.name)}. Please point your camera directly at the QR code standee on your dining table to unlock the menu.</p>
+
+          <div class="gatekeeper-viewport-wrap">
+            <div id="gatekeeper-camera-viewport"></div>
+            <div class="scanner-target-frame">
+              <div class="scanner-target-corners"></div>
+            </div>
+            <div class="scanner-laser"></div>
           </div>
-          <div class="scanner-laser"></div>
+
+          <div class="gatekeeper-status-row">
+            <span class="pulse-dot"></span>
+            <span id="gatekeeper-camera-status">Camera active · Looking for table QR standee...</span>
+          </div>
+
+          <div class="gatekeeper-actions">
+            <button class="gatekeeper-flip-btn" id="btn-gatekeeper-flip">${icon('refresh-cw')} Switch Camera</button>
+          </div>
+
+          <div class="gatekeeper-footer-note">
+            ${icon('shield-check')} <span>Physical table QR scan required to order</span>
+          </div>
         </div>
-        <div class="scanner-status" id="scanner-status-text">Point camera at the table QR code standee</div>
-        <div class="scanner-actions">
-          <label class="outline" for="qr-file-input">
-            ${icon('image')} Upload Photo
-            <input type="file" id="qr-file-input" accept="image/*" style="display:none">
-          </label>
-          <button class="outline" id="btn-toggle-camera">${icon('refresh-cw')} Flip Camera</button>
-        </div>
-      </div>
+      </main>
     </div>
-  `);
-
-  $('#scanner-modal-close')?.addEventListener('click', () => {
-    stopQrScanner();
-    closeModal();
-  });
-
-  const fileInput = $('#qr-file-input');
-  if (fileInput) {
-    fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      try {
-        const statusText = $('#scanner-status-text');
-        if (statusText) statusText.textContent = 'Reading QR from photo...';
-        if (window.Html5Qrcode) {
-          const html5Qr = activeScanner || new Html5Qrcode("qr-camera-viewport");
-          const decoded = await html5Qr.scanFile(file, true);
-          handleScannedQrResult(decoded);
-        }
-      } catch (err) {
-        toast('Could not find a valid table QR in that photo');
-        const statusText = $('#scanner-status-text');
-        if (statusText) statusText.textContent = 'No QR found. Please scan directly.';
-      }
-    });
-  }
-
-  startLiveQrScanner();
+  `;
 }
 
-async function startLiveQrScanner() {
+let activeScanner = null;
+let currentFacingMode = "environment";
+let isCameraStarting = false;
+
+async function initGatekeeperCamera() {
+  if (isCameraStarting) return;
+  isCameraStarting = true;
+
   if (!window.Html5Qrcode) {
-    const statusText = $('#scanner-status-text');
-    if (statusText) statusText.textContent = 'QR Scanner module loading...';
-    setTimeout(startLiveQrScanner, 200);
+    setTimeout(() => {
+      isCameraStarting = false;
+      initGatekeeperCamera();
+    }, 200);
     return;
   }
 
@@ -632,29 +630,32 @@ async function startLiveQrScanner() {
     if (activeScanner) {
       try { await activeScanner.stop(); } catch(e){}
     }
-    activeScanner = new Html5Qrcode("qr-camera-viewport");
+    const viewportEl = document.getElementById("gatekeeper-camera-viewport");
+    if (!viewportEl) {
+      isCameraStarting = false;
+      return;
+    }
+    activeScanner = new Html5Qrcode("gatekeeper-camera-viewport");
     await activeScanner.start(
       { facingMode: currentFacingMode },
-      { fps: 15, qrbox: { width: 220, height: 220 } },
+      { fps: 20, qrbox: { width: 220, height: 220 } },
       (decodedText) => {
-        handleScannedQrResult(decodedText);
+        handleGatekeeperQrScan(decodedText);
       },
       () => {}
     );
-    $('#btn-toggle-camera')?.addEventListener('click', async () => {
-      currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
-      await startLiveQrScanner();
-    });
   } catch (err) {
-    console.warn('Live camera start error:', err);
-    const statusText = $('#scanner-status-text');
-    if (statusText) {
-      statusText.innerHTML = `<span style="color:#b45448">Camera permission needed or not available.<br>Please allow camera access or use photo upload.</span>`;
+    console.warn('Gatekeeper camera error:', err);
+    const statusEl = document.getElementById("gatekeeper-camera-status");
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:#ff8577">Camera permission required. Please allow camera access in browser.</span>`;
     }
+  } finally {
+    isCameraStarting = false;
   }
 }
 
-function stopQrScanner() {
+function stopLiveCameraScanner() {
   if (activeScanner) {
     try {
       activeScanner.stop().catch(() => {}).finally(() => {
@@ -667,10 +668,7 @@ function stopQrScanner() {
   }
 }
 
-function handleScannedQrResult(qrContent) {
-  stopQrScanner();
-  closeModal();
-
+function handleGatekeeperQrScan(qrContent) {
   try {
     let url = null;
     try {
@@ -681,37 +679,48 @@ function handleScannedQrResult(qrContent) {
       }
     }
 
+    let targetCafe = cafe();
+    let cleanTable = null;
+    let tokenParam = null;
+
     if (url) {
       const searchParams = url.searchParams;
       const cafeParam = searchParams.get('cafe') || searchParams.get('cafeId') || searchParams.get('c');
       const tableParam = searchParams.get('table') || searchParams.get('t') || searchParams.get('tbl');
-      const tokenParam = searchParams.get('token') || searchParams.get('sig') || searchParams.get('k') || searchParams.get('auth');
+      tokenParam = searchParams.get('token') || searchParams.get('sig') || searchParams.get('k') || searchParams.get('auth');
 
-      let targetCafe = cafeParam ? db.cafes.find(c => c.id.toLowerCase() === cafeParam.toLowerCase() || (c.slug && c.slug.toLowerCase() === cafeParam.toLowerCase())) : cafe();
-      targetCafe = targetCafe || db.cafes[0];
-
-      if (targetCafe && tableParam && tokenParam) {
-        let cleanTable = String(tableParam).trim();
+      if (cafeParam) {
+        targetCafe = db.cafes.find(c => c.id.toLowerCase() === cafeParam.toLowerCase() || (c.slug && c.slug.toLowerCase() === cafeParam.toLowerCase())) || targetCafe;
+      }
+      if (tableParam) {
+        cleanTable = String(tableParam).trim();
         if (/^\d+$/.test(cleanTable)) cleanTable = cleanTable.padStart(2, '0');
-        if (verifyTableToken(targetCafe.id, cleanTable, tokenParam)) {
-          state.cafeId = targetCafe.id;
-          state.table = cleanTable;
-          state.tableVerified = true;
-          state.qrToken = tokenParam;
-          state.tableFromQr = true;
-          state.tamperAttempt = null;
-          saveSession();
-          render();
-          playToingSound();
-          toast(`✅ Joined Table ${cleanTable}! Ready to order.`);
-          return;
-        }
       }
     }
 
-    toast('⚠️ Invalid table QR code. Please scan an Eat \'N Greet table standee.');
+    if (targetCafe && cleanTable && tokenParam) {
+      if (verifyTableToken(targetCafe.id, cleanTable, tokenParam)) {
+        stopLiveCameraScanner();
+        state.cafeId = targetCafe.id;
+        state.table = cleanTable;
+        state.tableVerified = true;
+        state.qrToken = tokenParam;
+        state.tableFromQr = true;
+        state.tamperAttempt = null;
+        saveSession();
+        playToingSound();
+        toast(`✅ Verified Table ${cleanTable}! Welcome to ${targetCafe.name}.`);
+        render();
+        return;
+      }
+    }
+
+    const statusEl = document.getElementById("gatekeeper-camera-status");
+    if (statusEl) {
+      statusEl.innerHTML = `<span style="color:#ffb259">⚠️ Invalid QR code. Please scan the official table standee.</span>`;
+    }
   } catch(e) {
-    toast('⚠️ Could not verify QR code. Please try again.');
+    console.warn('QR parse error:', e);
   }
 }
 
@@ -720,7 +729,31 @@ function render(){
   saveSession();
   const app = $('#app');
   if(!app) return;
-  app.innerHTML = state.view === 'customer' ? customerView() : state.view === 'confirmation' ? confirmationView() : state.view === 'login' ? loginView() : dashboardView();
+
+  if (state.view === 'login') {
+    stopLiveCameraScanner();
+    app.innerHTML = loginView();
+  } else if (state.view === 'dashboard') {
+    stopLiveCameraScanner();
+    app.innerHTML = dashboardView();
+  } else if (state.view === 'confirmation') {
+    stopLiveCameraScanner();
+    app.innerHTML = confirmationView();
+  } else {
+    // Guest Customer Flow:
+    // Strictly require verified table QR session!
+    const isTableVerified = !!(state.table && state.tableVerified && state.qrToken && verifyTableToken(state.cafeId, state.table, state.qrToken));
+    if (!isTableVerified) {
+      state.table = '';
+      state.tableVerified = false;
+      state.qrToken = null;
+      app.innerHTML = qrGatekeeperView();
+      initGatekeeperCamera();
+    } else {
+      stopLiveCameraScanner();
+      app.innerHTML = customerView();
+    }
+  }
   bind();
 }
 
@@ -880,16 +913,13 @@ function customerView(){
     return a + (itm ? itm.price * x.qty : 0);
   }, 0);
 
-  let isTableVerified = !!(state.table && state.tableVerified);
-
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${!isTableVerified ? `<button class="outline" id="nav-btn-scan-qr" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;">${icon('camera')} <span>Scan Table</span></button>` : ''}<button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav>${state.tamperAttempt ? `<div class="tamper-warning-banner" id="tamper-banner"><div class="tamper-warning-content"><span>⚠️</span><div><strong>Unverified Table Link Detected</strong><span>You cannot change table numbers in the link. Please scan the physical QR code on Table ${esc(state.tamperAttempt)} to join.</span></div></div><button class="tamper-scan-btn" id="btn-scan-from-tamper">${icon('qr-code')} Scan Table QR</button></div>` : ''}${isTableVerified ? `<div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Verified via Table QR Standee</span></span></div>` : !state.tamperAttempt ? `<div class="table-prompt-bar"><div class="table-unverified-pill"><span>${icon('camera')} At the café? Join your table:</span><button id="nav-btn-scan-qr-bar">${icon('qr-code')} Scan Table QR</button></div></div>` : ''}${activeOrder ? `<div class="active-order-banner ${statusClass(activeOrder.status)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Order <b>${esc(activeOrder.id)}</b>: ${esc(activeOrder.status)}</span><span class="banner-sub">${activeOrder.status === 'Ready' ? '🎉 Order is ready for you!' : activeOrder.status === 'Preparing' ? '☕ Baristas are preparing your items' : 'Order received at the bar'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track & Wi-Fi</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${activeOrder ? `<div class="active-order-banner ${statusClass(activeOrder.status)}" id="active-order-bar"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Order <b>${esc(activeOrder.id)}</b>: ${esc(activeOrder.status)}</span><span class="banner-sub">${activeOrder.status === 'Ready' ? '🎉 Order is ready for you!' : activeOrder.status === 'Preparing' ? '☕ Baristas are preparing your items' : 'Order received at the bar'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track & Wi-Fi</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : ''}</main>`;
 }
 
 function cartDrawer(){
   let items = state.cart.map(x=>({...myMenu().find(m=>m.id===x.id),qty:x.qty})), sub = items.reduce((a,x)=>a+x.price*x.qty,0), tax = Math.round(sub*.05);
-  let isTableVerified = !!(state.table && state.tableVerified);
 
-  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary">${isTableVerified ? `<div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Table Standee</small></div></div>` : `<div class="table-required-box"><div class="table-required-icon">${icon('qr-code')}</div><h4>Table QR Scan Required</h4><p>To place your order and ensure it reaches your table, please scan the QR code standee on your dining table.</p><button class="primary" id="drawer-btn-scan-qr" style="width:100%;border-radius:10px;">${icon('camera')} Scan Table QR Standee</button></div>`}<div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(sub)}</span></div><div class="sum-row"><span>Taxes (5%)</span><span>${money(tax)}</span></div><div class="sum-row total"><span>Grand total</span><span>${money(sub+tax)}</span></div><button class="primary place-order" id="place-order" style="${!isTableVerified ? 'background:#5c4339;cursor:pointer;' : ''}">${isTableVerified ? `Place order ${icon('arrow-right')}` : `${icon('lock')} Scan Table QR to Place Order`}</button></div>`:''}</aside>`;
+  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary"><div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Standee</small></div></div><div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(sub)}</span></div><div class="sum-row"><span>Taxes (5%)</span><span>${money(tax)}</span></div><div class="sum-row total"><span>Grand total</span><span>${money(sub+tax)}</span></div><button class="primary place-order" id="place-order">Place order ${icon('arrow-right')}</button></div>`:''}</aside>`;
 }
 
 function confirmationView(){
@@ -1152,10 +1182,23 @@ function bind(){
     toast(`Added ${item ? item.name : 'item'} to cart`);
   });
   
-  $('#nav-btn-scan-qr')?.addEventListener('click', openQrScannerModal);
-  $('#nav-btn-scan-qr-bar')?.addEventListener('click', openQrScannerModal);
-  $('#btn-scan-from-tamper')?.addEventListener('click', openQrScannerModal);
-  $('#drawer-btn-scan-qr')?.addEventListener('click', openQrScannerModal);
+  $('#btn-gatekeeper-flip')?.addEventListener('click', async () => {
+    currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+    await initGatekeeperCamera();
+  });
+
+  $('#btn-switch-table')?.addEventListener('click', () => {
+    if(confirm('Scan a different table QR standee?')){
+      stopLiveCameraScanner();
+      state.table = '';
+      state.tableVerified = false;
+      state.qrToken = null;
+      state.tableFromQr = false;
+      saveSession();
+      render();
+    }
+  });
+
   $('#btn-rotate-qr-secret')?.addEventListener('click', () => {
     if(confirm('Rotate QR security key for ' + cafe().name + '? All previously printed QR table standees will be invalidated and must be reprinted.')){
       cafe().qrSecret = `eng_sec_${cafe().id.toLowerCase()}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
@@ -1388,7 +1431,11 @@ function closeModal(){
 async function placeOrder(){
   if(!state.table || !state.tableVerified || !state.qrToken || !verifyTableToken(cafe().id, state.table, state.qrToken)){
     toast('🔒 Please scan the physical QR code on your dining table to place an order');
-    openQrScannerModal();
+    state.table = '';
+    state.tableVerified = false;
+    state.qrToken = null;
+    saveSession();
+    render();
     return;
   }
   let table = state.table;
