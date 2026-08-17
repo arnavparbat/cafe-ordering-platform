@@ -42,7 +42,8 @@ export class OrderStore {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0'
     };
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
