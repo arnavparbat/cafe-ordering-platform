@@ -1616,6 +1616,40 @@ a { text-decoration: none; color: inherit; }
   box-shadow: 0 4px 16px rgba(45, 30, 20, 0.08);
 }
 
+.table-order-card.vacant-table {
+  border-color: #e5ded5;
+  background: #fdfbf7;
+  opacity: 0.92;
+}
+
+.table-order-card.vacant-table .table-badge-large {
+  background: #ebe3d9;
+  border-color: #dfd4c5;
+}
+
+.table-order-card.vacant-table .tbl-lbl {
+  color: var(--muted);
+}
+
+.table-order-card.vacant-table .tbl-num {
+  color: var(--coffee);
+}
+
+.status.status-vacant {
+  background: #f0f7f2;
+  color: #27774c;
+  border: 1px solid #c0e6ce;
+  font-weight: 700;
+}
+
+.vacant-table-body {
+  padding: 24px 20px;
+  text-align: center;
+  color: var(--muted);
+  background: #fffdf9;
+  border-radius: 10px;
+}
+
 .table-order-card.has-new-alert {
   border: 2px solid #df9938;
   background: linear-gradient(180deg, #fffef9 0%, #fffaf0 100%);
