@@ -2872,3 +2872,217 @@ a { text-decoration: none; color: inherit; }
   line-height: 1.35;
   margin-top: 4px;
 }
+
+/* ========================================================
+   CAFÉ CHARGES (GST, SERVICE CHARGE & CUSTOM SURCHARGES)
+   ======================================================== */
+.cafe-charges-col-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.charges-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.charge-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.charge-pill.gst {
+  background: #e6f4ea;
+  color: #1b6d3e;
+  border: 1px solid #b7dfc6;
+}
+
+.charge-pill.sc {
+  background: #fbf0dc;
+  color: #94580e;
+  border: 1px solid #ebd2aa;
+}
+
+.charge-pill.custom {
+  background: #f3ebf9;
+  color: #68388f;
+  border: 1px solid #dbc4ec;
+}
+
+.charge-pill.off {
+  background: #f2ede6;
+  color: #8c7e72;
+  border: 1px solid #dfd5c9;
+}
+
+/* Charges Modal Studio */
+.charges-modal-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header-with-sub h2 {
+  font: 700 20px var(--serif);
+  color: var(--coffee-dark);
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.charges-config-section {
+  background: #fcf9f5;
+  border: 1px solid #ede1d2;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.charge-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13.5px;
+  color: var(--coffee-dark);
+}
+
+.pill-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: #efe6da;
+  color: #6d5440;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.charge-field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.toggle-control-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-control-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--coffee);
+  cursor: pointer;
+}
+
+.charge-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.charge-input-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.custom-charges-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-charge-row {
+  display: grid;
+  grid-template-columns: 1.4fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+  background: #fff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e7dcce;
+}
+
+.custom-charge-row input, .custom-charge-row select {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ded0c0;
+}
+
+.live-bill-calc-simulation {
+  background: #f7f1e7;
+  border: 1.5px solid #ded0c0;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.sim-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--coffee-dark);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #ded0c0;
+}
+
+.sim-breakdown-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.sim-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+}
+
+.sim-row b {
+  color: var(--ink);
+}
+
+.sim-row.grand {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #ded0c0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a633f;
+}
+
+.sim-row.grand strong {
+  font-size: 16px;
+  color: #1a633f;
+}
+
+/* Printable Bill Elements */
+.btn-print-table-bill, .btn-print-order-bill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-print-table-bill:hover, .btn-print-order-bill:hover {
+  transform: translateY(-1px);
+}

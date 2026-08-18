@@ -33,6 +33,12 @@ const seed = {
       qrSecret: 'eng_sec_caf001_p@rkst',
       contact: '+91 98123 45678',
       address: '18, Park Street, Kolkata',
+      gstin: '19AAACH7409R1ZZ',
+      gstRate: 5,
+      gstEnabled: true,
+      serviceChargeRate: 5,
+      serviceChargeEnabled: true,
+      customCharges: [],
       status: 'Active',
       wifi: { ssid: 'EatNGreet_ParkStreet', password: 'Welcome@ParkStreet' },
       opensAt: '08:00',
@@ -49,6 +55,12 @@ const seed = {
       qrSecret: 'eng_sec_caf002_s@ltlk',
       contact: '+91 98345 67890',
       address: 'Sector V, Salt Lake, Kolkata',
+      gstin: '19AABCS8821Q1Z8',
+      gstRate: 5,
+      gstEnabled: true,
+      serviceChargeRate: 5,
+      serviceChargeEnabled: true,
+      customCharges: [],
       status: 'Active',
       wifi: { ssid: 'EatNGreet_SaltLake', password: 'Coffee@SaltLake' },
       opensAt: '09:00',
@@ -65,6 +77,12 @@ const seed = {
       qrSecret: 'eng_sec_caf003_b@llyg',
       contact: '+91 98765 43210',
       address: '45/2, Ballygunge Circular Rd, Kolkata',
+      gstin: '19AACCE3312M1Z2',
+      gstRate: 5,
+      gstEnabled: true,
+      serviceChargeRate: 5,
+      serviceChargeEnabled: true,
+      customCharges: [],
       status: 'Active',
       wifi: { ssid: 'EatNGreet_Ballygunge', password: 'Aroma@Ballygunge' },
       opensAt: '08:30',
@@ -98,10 +116,10 @@ const seed = {
     {id:'m17',cafeId:'CAF-003',name:'Fudge Walnut Brownie',description:'Rich Belgian chocolate brownie with roasted walnuts.',price:200,category:'Desserts',image:imgs.brownie,available:true,veg:true}
   ],
   orders: [
-    {id:'ORD-1048',cafeId:'CAF-001',table:'04',customerName:'Ananya Sharma',items:[{name:'House Cappuccino',qty:2,price:180},{name:'Butter Croissant',qty:1,price:155}],total:515,status:'Preparing',time:'10:42 AM',date:'Today',timestamp:Date.now()-1000*60*25},
-    {id:'ORD-1047',cafeId:'CAF-001',table:'11',customerName:'Rahul Sen',items:[{name:'Truffle Cream Pasta',qty:1,price:410,isNew:true}],total:410,status:'New',isNew:true,time:'10:31 AM',date:'Today',timestamp:Date.now()-1000*60*10},
-    {id:'ORD-1046',cafeId:'CAF-002',table:'07',customerName:'Priya Patel',items:[{name:'Spanish Cortado',qty:1,price:195},{name:'Classic Basque Cheesecake',qty:1,price:240}],total:435,status:'Ready',time:'10:18 AM',date:'Today',timestamp:Date.now()-1000*60*45},
-    {id:'ORD-1045',cafeId:'CAF-003',table:'02',customerName:'Vikram Das',items:[{name:'Avocado Sourdough Toast',qty:1,price:310}],total:310,status:'Completed',time:'09:52 AM',date:'Today',timestamp:Date.now()-1000*60*90}
+    {id:'ORD-1048',cafeId:'CAF-001',table:'04',customerName:'Ananya Sharma',items:[{name:'House Cappuccino',qty:2,price:180},{name:'Butter Croissant',qty:1,price:155}],total:567,status:'Preparing',time:'10:42 AM',date:'Today',timestamp:Date.now()-1000*60*25},
+    {id:'ORD-1047',cafeId:'CAF-001',table:'11',customerName:'Rahul Sen',items:[{name:'Truffle Cream Pasta',qty:1,price:410,isNew:true}],total:451,status:'New',isNew:true,time:'10:31 AM',date:'Today',timestamp:Date.now()-1000*60*10},
+    {id:'ORD-1046',cafeId:'CAF-002',table:'07',customerName:'Priya Patel',items:[{name:'Spanish Cortado',qty:1,price:195},{name:'Classic Basque Cheesecake',qty:1,price:240}],total:479,status:'Ready',time:'10:18 AM',date:'Today',timestamp:Date.now()-1000*60*45},
+    {id:'ORD-1045',cafeId:'CAF-003',table:'02',customerName:'Vikram Das',items:[{name:'Avocado Sourdough Toast',qty:1,price:310}],total:341,status:'Completed',time:'09:52 AM',date:'Today',timestamp:Date.now()-1000*60*90}
   ]
 };
 
@@ -159,6 +177,12 @@ db.cafes.forEach((c, i) => {
   c.address ||= '18, Park Street, Kolkata';
   c.slug ||= c.username || c.id.toLowerCase();
   c.qrSecret ||= `eng_sec_${c.id.toLowerCase()}_${c.password || 'welcome123'}`;
+  c.gstRate = c.gstRate !== undefined ? Number(c.gstRate) : 5;
+  c.gstEnabled = c.gstEnabled !== undefined ? !!c.gstEnabled : true;
+  c.serviceChargeRate = c.serviceChargeRate !== undefined ? Number(c.serviceChargeRate) : 5;
+  c.serviceChargeEnabled = c.serviceChargeEnabled !== undefined ? !!c.serviceChargeEnabled : true;
+  c.gstin ||= (i === 0 ? '19AAACH7409R1ZZ' : i === 1 ? '19AABCS8821Q1Z8' : '19AACCE3312M1Z2');
+  c.customCharges ||= [];
 });
 localStorage.setItem('juniper-db', JSON.stringify(db));
 
@@ -193,6 +217,461 @@ function verifyTableToken(cafeId, table, token) {
   const secret = c?.qrSecret || `${cafeId}_eng_secret_key_2026`;
   const expected = generateTableToken(cafeId, table, secret);
   return String(token).trim().toLowerCase() === expected.toLowerCase();
+}
+
+// ========================================================
+// CAFÉ BILLING CHARGES & REVENUE ENGINE
+// ========================================================
+function getCafeCharges(cafeIdOrObj) {
+  const c = typeof cafeIdOrObj === 'object' && cafeIdOrObj !== null 
+    ? cafeIdOrObj 
+    : (db.cafes.find(x => x.id === cafeIdOrObj) || (typeof cafe === 'function' ? cafe() : db.cafes[0]) || db.cafes[0]);
+  
+  if (!c) {
+    return [{ id: 'gst', name: 'GST (5%)', label: 'GST', rate: 5, type: 'percent', enabled: true }];
+  }
+
+  const list = [];
+  const gstRate = c.gstRate !== undefined ? Number(c.gstRate) : 5;
+  const gstEnabled = c.gstEnabled !== undefined ? !!c.gstEnabled : true;
+  if (gstEnabled && gstRate > 0) {
+    list.push({
+      id: 'gst',
+      name: `GST (${gstRate}%)`,
+      label: 'GST',
+      rate: gstRate,
+      type: 'percent',
+      enabled: true
+    });
+  }
+
+  const scRate = c.serviceChargeRate !== undefined ? Number(c.serviceChargeRate) : 5;
+  const scEnabled = c.serviceChargeEnabled !== undefined ? !!c.serviceChargeEnabled : true;
+  if (scEnabled && scRate > 0) {
+    list.push({
+      id: 'service_charge',
+      name: `Service Charge (${scRate}%)`,
+      label: 'Service Charge',
+      rate: scRate,
+      type: 'percent',
+      enabled: true
+    });
+  }
+
+  if (Array.isArray(c.customCharges)) {
+    c.customCharges.forEach((ch, idx) => {
+      if (ch && ch.enabled && Number(ch.rate) > 0) {
+        const typeLabel = ch.type === 'fixed' ? ` (₹${ch.rate})` : ` (${ch.rate}%)`;
+        list.push({
+          id: ch.id || `custom_${idx}`,
+          name: `${ch.name}${typeLabel}`,
+          label: ch.name,
+          rate: Number(ch.rate),
+          type: ch.type || 'percent',
+          enabled: true
+        });
+      }
+    });
+  }
+
+  return list;
+}
+
+function calculateOrderBreakdown(items, cafeIdOrObj) {
+  const subtotal = (items || []).reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 1), 0);
+  const activeCharges = getCafeCharges(cafeIdOrObj);
+  const appliedCharges = [];
+  let totalCharges = 0;
+
+  activeCharges.forEach(ch => {
+    let amt = 0;
+    if (ch.type === 'percent') {
+      amt = Math.round(subtotal * (ch.rate / 100));
+    } else {
+      amt = Math.round(Number(ch.rate) || 0);
+    }
+    appliedCharges.push({
+      id: ch.id,
+      name: ch.name,
+      label: ch.label,
+      rate: ch.rate,
+      type: ch.type,
+      amount: amt
+    });
+    totalCharges += amt;
+  });
+
+  const total = subtotal + totalCharges;
+  const gstCharge = appliedCharges.find(c => c.id === 'gst');
+
+  return {
+    subtotal,
+    charges: appliedCharges,
+    totalCharges,
+    tax: gstCharge ? gstCharge.amount : 0,
+    total
+  };
+}
+
+function numberToWords(num) {
+  if (!num || isNaN(num)) return '';
+  const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
+  const b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
+
+  function inWords(n) {
+    if ((n = n.toString()).length > 9) return '';
+    let n_ = ('000000000' + n).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+    if (!n_) return '';
+    let str = '';
+    str += (n_[1] != 0) ? (a[Number(n_[1])] || b[n_[1][0]] + ' ' + a[n_[1][1]]) + 'Crore ' : '';
+    str += (n_[2] != 0) ? (a[Number(n_[2])] || b[n_[2][0]] + ' ' + a[n_[2][1]]) + 'Lakh ' : '';
+    str += (n_[3] != 0) ? (a[Number(n_[3])] || b[n_[3][0]] + ' ' + a[n_[3][1]]) + 'Thousand ' : '';
+    str += (n_[4] != 0) ? (a[Number(n_[4])] || b[n_[4][0]] + ' ' + a[n_[4][1]]) + 'Hundred ' : '';
+    str += (n_[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_[5])] || b[n_[5][0]] + ' ' + a[n_[5][1]]) : '';
+    return str.trim();
+  }
+
+  const words = inWords(Math.round(num));
+  return words ? `Rupees ${words} Only` : '';
+}
+
+// ========================================================
+// PRINTABLE BILL & TAX INVOICE GENERATOR
+// ========================================================
+function getBillData(type, targetId) {
+  const c = cafe();
+  let billTitle = "TAX INVOICE / DINING BILL";
+  let billNumber = `INV-${Date.now().toString().slice(-6)}`;
+  let dateTimeStr = new Date().toLocaleString('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  });
+  let tableNum = '01';
+  let guestName = 'Walk-in Guest';
+  let items = [];
+  let orderBatches = [];
+  let paymentStatus = 'Offline (Cash / Card / UPI)';
+
+  if (type === 'table') {
+    tableNum = String(targetId).padStart(2, '0');
+    const tableResets = db.tableResets || {};
+    const resetTime = tableResets[`${c.id}_${tableNum}`] || 0;
+    const activeOrders = db.orders.filter(o => 
+      o.cafeId === c.id && 
+      String(o.table).padStart(2, '0') === tableNum &&
+      (o.timestamp || 0) > resetTime
+    );
+
+    const ordersToBill = activeOrders.length > 0 ? activeOrders : db.orders.filter(o => o.cafeId === c.id && String(o.table).padStart(2, '0') === tableNum).slice(0, 3);
+    
+    if (ordersToBill.length > 0) {
+      guestName = ordersToBill[0].customerName || `Guest (Table ${tableNum})`;
+      dateTimeStr = ordersToBill[0].date && ordersToBill[0].time ? `${ordersToBill[0].date} · ${ordersToBill[0].time}` : dateTimeStr;
+      billNumber = `BILL-T${tableNum}-${ordersToBill[0].id.replace('ORD-', '')}`;
+      ordersToBill.forEach(ord => {
+        orderBatches.push(ord.id);
+        (ord.items || []).forEach(itm => {
+          items.push({ name: itm.name, qty: itm.qty || 1, price: itm.price });
+        });
+      });
+    }
+  } else if (type === 'order') {
+    const o = db.orders.find(ord => ord.id === targetId) || (state.confirmed && state.confirmed.id === targetId ? state.confirmed : null);
+    if (o) {
+      tableNum = String(o.table || '01').padStart(2, '0');
+      guestName = o.customerName || `Guest (Table ${tableNum})`;
+      billNumber = `INV-${o.id}`;
+      dateTimeStr = `${o.date || 'Today'} · ${o.time || ''}`;
+      orderBatches = [o.id];
+      items = (o.items || []).map(i => ({ name: i.name, qty: i.qty || 1, price: i.price }));
+    }
+  }
+
+  // Deduplicate and aggregate identical items
+  const itemMap = new Map();
+  items.forEach(itm => {
+    const key = `${itm.name}__${itm.price}`;
+    if (itemMap.has(key)) {
+      itemMap.get(key).qty += (itm.qty || 1);
+    } else {
+      itemMap.set(key, { name: itm.name, qty: itm.qty || 1, price: itm.price });
+    }
+  });
+  const consolidatedItems = Array.from(itemMap.values());
+  const breakdown = calculateOrderBreakdown(consolidatedItems, c);
+
+  return {
+    cafe: c,
+    table: tableNum,
+    guestName,
+    billNumber,
+    dateTimeStr,
+    orderBatches,
+    items: consolidatedItems,
+    breakdown,
+    paymentStatus
+  };
+}
+
+function printBillWindow(billData) {
+  if (!billData) return;
+  const { cafe: c, table, guestName, billNumber, dateTimeStr, orderBatches, items, breakdown, paymentStatus } = billData;
+  const win = window.open('', '_blank', 'width=460,height=800');
+  if (!win) return alert('Please allow popups to print bills.');
+
+  const totalWords = numberToWords(breakdown.total);
+
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bill — Table ${esc(table)} (${billNumber})</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 16px;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f4efe9;
+      color: #1a1512;
+      display: flex;
+      justify-content: center;
+    }
+    .thermal-bill {
+      width: 380px;
+      background: #fff;
+      padding: 28px 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .bill-header {
+      text-align: center;
+      border-bottom: 2px dashed #d5c8b8;
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+    }
+    .brand-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: #281811;
+      margin: 0 0 4px;
+    }
+    .cafe-meta {
+      font-size: 11.5px;
+      color: #6a584c;
+      margin: 2px 0;
+    }
+    .tax-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: #281811;
+      color: #fff;
+      padding: 3px 12px;
+      border-radius: 12px;
+      margin-top: 8px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+      font-size: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px dashed #d5c8b8;
+      margin-bottom: 14px;
+    }
+    .meta-item strong {
+      color: #281811;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+    }
+    .items-table th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #7a685b;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #281811;
+    }
+    .items-table th.num, .items-table td.num {
+      text-align: right;
+    }
+    .items-table td {
+      padding: 8px 0;
+      border-bottom: 1px dashed #efe5d9;
+      font-size: 12.5px;
+      vertical-align: top;
+    }
+    .item-name {
+      font-weight: 600;
+      color: #281811;
+    }
+    .charges-summary {
+      border-top: 1px dashed #d5c8b8;
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12.5px;
+    }
+    .sum-line {
+      display: flex;
+      justify-content: space-between;
+      color: #5c4a3e;
+    }
+    .sum-line.charge-line {
+      color: #4a3b31;
+    }
+    .sum-line.grand-total {
+      margin-top: 8px;
+      padding-top: 10px;
+      border-top: 2px solid #281811;
+      border-bottom: 2px solid #281811;
+      padding-bottom: 10px;
+      font-size: 16px;
+      font-weight: 800;
+      color: #1a5e37;
+    }
+    .words-note {
+      font-size: 11px;
+      font-style: italic;
+      color: #7a685b;
+      margin: 8px 0 14px;
+      text-align: right;
+    }
+    .bill-footer {
+      border-top: 1px dashed #d5c8b8;
+      padding-top: 14px;
+      text-align: center;
+      font-size: 11.5px;
+      color: #6a584c;
+    }
+    .wifi-pill {
+      background: #faf6f0;
+      border: 1px dashed #d5c8b8;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin: 10px 0;
+      text-align: left;
+      font-size: 11px;
+    }
+    .barcode-sim {
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 4px;
+      font-size: 13px;
+      margin: 12px 0 4px;
+      font-weight: 700;
+    }
+    .print-bar {
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .btn-print-now {
+      background: #281811;
+      color: #fff;
+      border: none;
+      padding: 10px 22px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    @media print {
+      body { background: #fff !important; padding: 0 !important; }
+      .thermal-bill { width: 100% !important; box-shadow: none !important; padding: 12px !important; border-radius: 0 !important; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="print-bar no-print">
+      <button class="btn-print-now" onclick="window.print()">🖨️ Print Bill Now</button>
+    </div>
+    <div class="thermal-bill">
+      <header class="bill-header">
+        <h1 class="brand-title">${esc(c.name)}</h1>
+        <div class="cafe-meta">${esc(c.address || 'Kolkata')}</div>
+        <div class="cafe-meta">Ph: ${esc(c.contact || '+91 98123 45678')}</div>
+        ${c.gstin ? `<div class="cafe-meta"><strong>GSTIN:</strong> ${esc(c.gstin)}</div>` : ''}
+        <div><span class="tax-badge">Tax Invoice & Bill</span></div>
+      </header>
+
+      <div class="meta-grid">
+        <div class="meta-item"><span>Bill No:</span> <strong>${esc(billNumber)}</strong></div>
+        <div class="meta-item"><span>Table:</span> <strong>Table ${esc(table)}</strong></div>
+        <div class="meta-item"><span>Date:</span> <strong>${esc(dateTimeStr)}</strong></div>
+        <div class="meta-item"><span>Guest:</span> <strong>${esc(guestName)}</strong></div>
+        ${orderBatches.length ? `<div class="meta-item" style="grid-column:1/-1;"><span>Order Ref:</span> <strong>#${esc(orderBatches.join(', #'))}</strong></div>` : ''}
+      </div>
+
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="num">Qty</th>
+            <th class="num">Rate</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(i => `
+            <tr>
+              <td><div class="item-name">${esc(i.name)}</div></td>
+              <td class="num">${i.qty}</td>
+              <td class="num">₹${i.price}</td>
+              <td class="num"><strong>₹${i.qty * i.price}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div class="charges-summary">
+        <div class="sum-line">
+          <span>Items Subtotal (${items.reduce((s, i) => s + i.qty, 0)} items):</span>
+          <strong>₹${breakdown.subtotal}</strong>
+        </div>
+        ${breakdown.charges.map(ch => `
+          <div class="sum-line charge-line">
+            <span>${esc(ch.name)}:</span>
+            <span>₹${ch.amount}</span>
+          </div>
+        `).join('')}
+        <div class="sum-line grand-total">
+          <span>GRAND TOTAL:</span>
+          <strong>₹${breakdown.total}</strong>
+        </div>
+      </div>
+
+      ${totalWords ? `<div class="words-note">${esc(totalWords)}</div>` : ''}
+
+      <footer class="bill-footer">
+        <div style="font-weight:600;color:#281811;margin-bottom:6px;">Payment Mode: ${esc(paymentStatus)}</div>
+        ${c.wifi ? `<div class="wifi-pill"><b>📶 Guest Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>🔑 Password:</b> ${esc(c.wifi.password)}</div>` : ''}
+        <div style="margin:10px 0 6px;">Thank you for dining at <b>${esc(c.name)}</b>!</div>
+        <div>Please visit again ✨</div>
+        <div class="barcode-sim">||| | |||| | |||||| || | |||</div>
+      </footer>
+    </div>
+  </div>
+  <script>
+    setTimeout(() => window.print(), 400);
+  </script>
+</body>
+</html>`);
+  win.document.close();
 }
 
 // URL Parameter & Multi-Link Resolver with Tamper Detection
@@ -998,7 +1477,34 @@ function orderRow(o){
 }
 
 function cafesPage(){
-  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes"></div><select class="select"><option>All statuses</option><option>Active</option><option>Inactive</option></select></div><span class="panel-sub">${db.cafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${db.cafes.map(c=>`<tr><td><div style="display:flex;align-items:center;gap:11px"><img class="cafe-logo-sm" src="${c.image}"><div><div class="cell-title">${esc(c.name)}</div><div class="cell-sub">@${esc(c.username)} · ${esc(c.address)}</div></div></div></td><td><b>${esc(c.id)}</b></td><td><button class="outline copy-cafe-link" data-url="${getCafeUrl(c.id)}" style="padding:5px 10px;font-size:11px;">${icon('copy')} Copy Link</button></td><td><button class="primary view-cafe-qr" data-cafe="${c.id}" style="padding:5px 10px;font-size:11px;">${icon('qr-code')} View QR</button></td><td><button class="outline admin-rotate-key" data-cafe="${c.id}" title="Rotate cryptographic security key for ${esc(c.name)}" style="padding:5px 10px;font-size:11px;color:#8f4d0a;">${icon('refresh-cw')} Rotate Key</button></td><td><button class="status ${statusClass(c.status)} status-toggle" data-cafe="${c.id}">${c.status}</button></td><td><div style="display:flex;gap:6px;"><button class="outline visit-cafe-menu" data-cafe="${c.id}" title="Open guest menu" style="padding:5px 8px;font-size:11px;">${icon('external-link')}</button><button class="dots edit-cafe" data-cafe="${c.id}">${icon('ellipsis')}</button></div></td></tr>`).join('')}</tbody></table></div></section>`;
+  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes"></div><select class="select"><option>All statuses</option><option>Active</option><option>Inactive</option></select></div><span class="panel-sub">${db.cafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>Charges & Taxes</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${db.cafes.map(c=>{
+    const gstRate = c.gstRate !== undefined ? Number(c.gstRate) : 5;
+    const gstEnabled = c.gstEnabled !== undefined ? !!c.gstEnabled : true;
+    const scRate = c.serviceChargeRate !== undefined ? Number(c.serviceChargeRate) : 5;
+    const scEnabled = c.serviceChargeEnabled !== undefined ? !!c.serviceChargeEnabled : true;
+    const customCount = Array.isArray(c.customCharges) ? c.customCharges.filter(x => x && x.enabled).length : 0;
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:11px"><img class="cafe-logo-sm" src="${c.image}"><div><div class="cell-title">${esc(c.name)}</div><div class="cell-sub">@${esc(c.username)} · ${esc(c.address)}</div></div></div></td>
+      <td><b>${esc(c.id)}</b></td>
+      <td>
+        <div class="cafe-charges-col-cell">
+          <div class="charges-pills-wrap">
+            ${gstEnabled && gstRate > 0 ? `<span class="charge-pill gst" title="GST ${gstRate}% active">GST ${gstRate}%</span>` : `<span class="charge-pill off">GST Off</span>`}
+            ${scEnabled && scRate > 0 ? `<span class="charge-pill sc" title="Service Charge ${scRate}% active">SC ${scRate}%</span>` : `<span class="charge-pill off">SC Off</span>`}
+            ${customCount > 0 ? `<span class="charge-pill custom" title="${customCount} custom add-ons active">+${customCount} custom</span>` : ''}
+          </div>
+          <button type="button" class="outline edit-cafe-charges" data-cafe="${c.id}" style="padding:4px 9px;font-size:11px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;width:max-content;">
+            ${icon('settings-2')} Edit Charges
+          </button>
+        </div>
+      </td>
+      <td><button class="outline copy-cafe-link" data-url="${getCafeUrl(c.id)}" style="padding:5px 10px;font-size:11px;">${icon('copy')} Copy Link</button></td>
+      <td><button class="primary view-cafe-qr" data-cafe="${c.id}" style="padding:5px 10px;font-size:11px;">${icon('qr-code')} View QR</button></td>
+      <td><button class="outline admin-rotate-key" data-cafe="${c.id}" title="Rotate cryptographic security key for ${esc(c.name)}" style="padding:5px 10px;font-size:11px;color:#8f4d0a;">${icon('refresh-cw')} Rotate Key</button></td>
+      <td><button class="status ${statusClass(c.status)} status-toggle" data-cafe="${c.id}">${c.status}</button></td>
+      <td><div style="display:flex;gap:6px;"><button class="outline visit-cafe-menu" data-cafe="${c.id}" title="Open guest menu" style="padding:5px 8px;font-size:11px;">${icon('external-link')}</button><button class="dots edit-cafe" data-cafe="${c.id}">${icon('ellipsis')}</button></div></td>
+    </tr>`;
+  }).join('')}</tbody></table></div></section>`;
 }
 
 // Table-Organized Orders Data Aggregator
@@ -1036,9 +1542,9 @@ function getCafeTableGroups() {
 
     if (activeOrders.length > 0) {
       let totalItems = 0;
-      let total = 0;
       let hasNew = false;
       let activeOrdersCount = 0;
+      const allActiveItems = [];
 
       activeOrders.forEach(o => {
         if (o.status === 'New' || o.isNew) hasNew = true;
@@ -1047,9 +1553,11 @@ function getCafeTableGroups() {
         }
         (o.items || []).forEach(item => {
           totalItems += (item.qty || 1);
+          allActiveItems.push(item);
         });
-        total += (o.total || 0);
       });
+
+      const breakdown = calculateOrderBreakdown(allActiveItems, cId);
 
       const hasReady = activeOrders.some(o => o.status === 'Ready');
       const hasPrep = activeOrders.some(o => o.status === 'Preparing' || o.status === 'Processing');
@@ -1068,7 +1576,9 @@ function getCafeTableGroups() {
         customerName: activeOrders[0]?.customerName || `Guest (Table ${tbl})`,
         hasNew,
         totalItems,
-        total,
+        total: breakdown.total,
+        subtotal: breakdown.subtotal,
+        breakdown,
         activeOrdersCount,
         status,
         latestTime: activeOrders[0]?.time || 'Today',
@@ -1087,6 +1597,8 @@ function getCafeTableGroups() {
         hasNew: false,
         totalItems: 0,
         total: 0,
+        subtotal: 0,
+        breakdown: { subtotal: 0, charges: [], totalCharges: 0, total: 0 },
         activeOrdersCount: 0,
         status: 'Available',
         latestTime: lastPastOrder ? `Last settled ${lastPastOrder.time || 'earlier'}` : 'Ready for guests',
@@ -1151,8 +1663,7 @@ function tableSectionView(g, isExpanded) {
   // Active Dining Table Session
   const isNewTable = g.hasNew;
   const statusCls = statusClass(g.status);
-  const subtotal = Math.round(g.total / 1.05);
-  const tax = g.total - subtotal;
+  const bd = g.breakdown || calculateOrderBreakdown(g.orders.flatMap(o => o.items || []), cafe().id);
 
   return `<article class="table-order-card ${isNewTable ? 'has-new-alert' : ''} ${isExpanded ? 'expanded' : ''}" data-table-card="${g.table}">
     <header class="table-card-head" data-toggle-table="${g.table}">
@@ -1177,6 +1688,9 @@ function tableSectionView(g, isExpanded) {
         </div>
       </div>
       <div class="table-head-right" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="outline btn-print-table-bill" data-print-table="${esc(g.table)}" style="padding:6px 12px;font-size:11.5px;border-radius:8px;font-weight:700;background:#fff;display:inline-flex;align-items:center;gap:4px;" title="Print Customer Bill Receipt for Table ${esc(g.table)}">
+          ${icon('printer')} Print Bill
+        </button>
         <button type="button" class="outline btn-add-items-table" data-pos-table="${esc(g.table)}" style="padding:6px 12px;font-size:11.5px;border-radius:8px;font-weight:700;background:#fff;">${icon('plus')} + Add Items</button>
         <button type="button" class="table-expand-btn" data-toggle-table="${g.table}">
           <span>${isExpanded ? 'Hide Details' : 'View Orders'}</span>
@@ -1195,8 +1709,8 @@ function tableSectionView(g, isExpanded) {
                 <span class="batch-time">${esc(ord.time || 'Today')}</span>
                 ${ordIsNew ? `<span class="order-ring-pill animate-ring">${icon('bell-ring')} New Batch</span>` : `<span class="batch-num-badge">Batch #${g.orders.length - idx}</span>`}
               </div>
-              <div class="batch-actions">
-                <label style="font-size:11px;color:var(--muted);font-weight:600;">Status:</label>
+              <div class="batch-actions" style="display:flex;align-items:center;gap:8px;">
+                <button type="button" class="outline btn-print-order-bill" data-print-order="${esc(ord.id)}" style="padding:3px 8px;font-size:10.5px;font-weight:700;height:30px;background:#fff;" title="Print this specific batch receipt">${icon('printer')} Batch Slip</button>
                 <select class="select order-status-select" data-order="${ord.id}" data-table="${g.table}" style="height:32px;padding:2px 28px 2px 10px;">
                   <option ${ord.status==='New'?'selected':''}>New</option>
                   <option ${ord.status==='Preparing'?'selected':''}>Preparing</option>
@@ -1232,12 +1746,17 @@ function tableSectionView(g, isExpanded) {
             <span class="bill-status-tag ${g.activeOrdersCount === 0 ? 'paid' : 'unpaid'}">${g.activeOrdersCount === 0 ? '✓ Orders Fulfilled' : '● Bill Pending Settlement'}</span>
           </div>
           <div class="bill-amounts-grid">
-            <div class="bill-stat"><span>Subtotal:</span><b>${money(subtotal)}</b></div>
-            <div class="bill-stat"><span>Taxes (5%):</span><b>${money(tax)}</b></div>
+            <div class="bill-stat"><span>Subtotal:</span><b>${money(bd.subtotal)}</b></div>
+            ${bd.charges.map(ch => `
+              <div class="bill-stat"><span>${esc(ch.name)}:</span><b>${money(ch.amount)}</b></div>
+            `).join('')}
             <div class="bill-stat grand"><span>Grand Total:</span><strong>${money(g.total)}</strong></div>
           </div>
         </div>
         <div class="bill-actions-right">
+          <button type="button" class="primary btn-print-table-bill" data-print-table="${esc(g.table)}" style="font-size:12px;padding:9px 16px;border-radius:8px;font-weight:700;background:var(--coffee-dark);color:#fff;display:inline-flex;align-items:center;gap:6px;" title="Print official dining bill receipt">
+            ${icon('printer')} Print Bill
+          </button>
           <button type="button" class="outline btn-add-items-table" data-pos-table="${esc(g.table)}" style="font-size:12px;padding:9px 14px;border-radius:8px;font-weight:700;">${icon('plus-circle')} + Add Items for Table ${esc(g.table)}</button>
           ${isNewTable ? `<button type="button" class="outline btn-ack-table" data-ack-table="${g.table}">${icon('check')} Acknowledge & Start Preparing</button>` : ''}
           <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Customer has paid offline. Stop this guest's bill and reset table for next customer.">${icon('circle-check')} Complete & Restart Table (Bill Paid Offline)</button>
@@ -1396,7 +1915,38 @@ function acknowledgeTableOrders(tableNum) {
 }
 
 function ordersTable(data){
-  return `<div style="overflow:auto"><table class="table"><thead><tr><th>Order</th><th>Table & time</th><th>Items</th><th>Total</th><th>Status</th><th>Update</th></tr></thead><tbody>${data.length?data.map(o=>`<tr><td><div class="cell-title">${esc(o.id)}</div><div class="cell-sub">${esc(o.date || 'Today')}</div></td><td><div class="table-badge">${esc(o.table)}</div><div class="cell-sub">${esc(o.time)}</div></td><td>${o.items.map(i=>`<div class="cell-sub">${i.qty}× ${esc(i.name)}</div>`).join('')}</td><td class="cell-title">${money(o.total)}</td><td><span class="status ${statusClass(o.status)}">${o.status}</span></td><td><select class="select order-status" data-order="${o.id}" style="height:34px"><option ${o.status==='New'?'selected':''}>New</option><option ${o.status==='Preparing'?'selected':''}>Preparing</option><option ${o.status==='Ready'?'selected':''}>Ready</option><option ${o.status==='Completed'?'selected':''}>Completed</option><option ${o.status==='Cancelled'?'selected':''}>Cancelled</option></select></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No orders match those filters.</div></td></tr>`}</tbody></table></div>`;
+  const c = cafe();
+  return `<div style="overflow:auto"><table class="table"><thead><tr><th>Order</th><th>Table & time</th><th>Items</th><th>Charges Breakdown</th><th>Total</th><th>Status</th><th>Print / Actions</th></tr></thead><tbody>${data.length?data.map(o=>{
+    const bd = calculateOrderBreakdown(o.items || [], o.cafeId || c.id);
+    return `<tr>
+      <td><div class="cell-title">${esc(o.id)}</div><div class="cell-sub">${esc(o.customerName || (o.date || 'Today'))}</div></td>
+      <td><div class="table-badge">${esc(o.table)}</div><div class="cell-sub">${esc(o.time || '')}</div></td>
+      <td>${(o.items || []).map(i=>`<div class="cell-sub">${i.qty}× ${esc(i.name)} (${money(i.price)})</div>`).join('')}</td>
+      <td>
+        <div style="font-size:11.5px;display:flex;flex-direction:column;gap:2px;">
+          <span style="color:var(--muted);">Subtotal: <b>${money(bd.subtotal)}</b></span>
+          ${bd.charges.map(ch => `<span style="color:#6a584c;">${esc(ch.name)}: <b>${money(ch.amount)}</b></span>`).join('')}
+        </div>
+      </td>
+      <td class="cell-title" style="color:#1b683f;font-weight:800;">${money(o.total || bd.total)}</td>
+      <td>
+        <select class="select order-status" data-order="${o.id}" style="height:34px">
+          <option ${o.status==='New'?'selected':''}>New</option>
+          <option ${o.status==='Preparing'?'selected':''}>Preparing</option>
+          <option ${o.status==='Ready'?'selected':''}>Ready</option>
+          <option ${o.status==='Completed'?'selected':''}>Completed</option>
+          <option ${o.status==='Cancelled'?'selected':''}>Cancelled</option>
+        </select>
+      </td>
+      <td>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="outline btn-print-order-bill" data-print-order="${esc(o.id)}" style="padding:6px 10px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;" title="Print Bill Receipt for Order #${esc(o.id)}">
+            ${icon('printer')} Print Bill
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="7"><div class="empty">No orders match those filters.</div></td></tr>`}</tbody></table></div>`;
 }
 
 // ========================================================
@@ -1472,9 +2022,7 @@ async function placeStaffOrder() {
     };
   });
 
-  const subtotal = items.reduce((a, i) => a + i.qty * i.price, 0);
-  const tax = Math.round(subtotal * 0.05);
-  const total = subtotal + tax;
+  const breakdown = calculateOrderBreakdown(items, cafe().id);
   const id = `ORD-${Math.max(1000, ...db.orders.map(o => +o.id.split('-')[1] || 0)) + 1}`;
 
   const o = {
@@ -1485,7 +2033,10 @@ async function placeStaffOrder() {
     qrVerified: true,
     isStaffCreated: true,
     items,
-    total,
+    subtotal: breakdown.subtotal,
+    charges: breakdown.charges,
+    tax: breakdown.tax,
+    total: breakdown.total,
     status: 'New',
     isNew: true,
     time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -1505,8 +2056,8 @@ async function placeStaffOrder() {
       body: JSON.stringify({
         ...o,
         cafeName: cafe().name,
-        subtotal,
-        tax,
+        subtotal: breakdown.subtotal,
+        tax: breakdown.tax,
         createdAt: new Date().toLocaleString('en-IN')
       })
     }).catch(() => {});
@@ -1523,7 +2074,7 @@ async function placeStaffOrder() {
   state.page = 'orders';
   render();
 
-  toast(`✨ Order #${o.id} placed for Table ${cleanTable} (${money(total)}) & sent to Order Management!`);
+  toast(`✨ Order #${o.id} placed for Table ${cleanTable} (${money(breakdown.total)}) & sent to Order Management!`);
 }
 
 function posPage() {
@@ -1542,10 +2093,8 @@ function posPage() {
 
   const sampleTables = Array.from({ length: 15 }, (_, i) => String(i + 1).padStart(2, '0'));
 
-  // Calculate cart totals
-  const subtotal = staffCart.reduce((sum, item) => sum + item.qty * item.price, 0);
-  const tax = Math.round(subtotal * 0.05);
-  const total = subtotal + tax;
+  // Calculate cart totals with dynamic café charges
+  const breakdown = calculateOrderBreakdown(staffCart, c);
   const totalItemsCount = staffCart.reduce((sum, item) => sum + item.qty, 0);
 
   // Filter menu items
@@ -1680,7 +2229,10 @@ function posPage() {
               <small>${totalItemsCount} ${totalItemsCount === 1 ? 'item' : 'items'} selected</small>
             </div>
           </div>
-          ${staffCart.length > 0 ? `<button type="button" class="soft pos-btn-clear-cart" id="pos-btn-clear-order" title="Clear order draft">${icon('trash-2')}</button>` : ''}
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${staffCart.length > 0 ? `<button type="button" class="soft pos-btn-clear-cart" id="pos-btn-preview-bill" title="Print/Preview Current Slip" style="background:rgba(255,255,255,0.15);color:#fff;">${icon('printer')}</button>` : ''}
+            ${staffCart.length > 0 ? `<button type="button" class="soft pos-btn-clear-cart" id="pos-btn-clear-order" title="Clear order draft">${icon('trash-2')}</button>` : ''}
+          </div>
         </header>
 
         <div class="pos-slip-body">
@@ -1718,21 +2270,23 @@ function posPage() {
           <div class="pos-bill-summary-rows">
             <div class="pos-bill-row">
               <span>Items Subtotal (${totalItemsCount} items)</span>
-              <b>${money(subtotal)}</b>
+              <b>${money(breakdown.subtotal)}</b>
             </div>
-            <div class="pos-bill-row">
-              <span>Taxes (5% GST)</span>
-              <b>${money(tax)}</b>
-            </div>
+            ${breakdown.charges.map(ch => `
+              <div class="pos-bill-row">
+                <span>${esc(ch.name)}</span>
+                <b>${money(ch.amount)}</b>
+              </div>
+            `).join('')}
             <div class="pos-bill-row total">
               <span>Grand Total</span>
-              <strong class="pos-grand-total">${money(total)}</strong>
+              <strong class="pos-grand-total">${money(breakdown.total)}</strong>
             </div>
           </div>
 
           <div class="pos-slip-actions-group">
             <button type="button" class="primary pos-btn-dispatch-order" id="btn-staff-submit-order" ${staffCart.length === 0 ? 'disabled' : ''}>
-              ${icon('clipboard-check')} <span>Place Order for Table ${esc(currentTable)} (${money(total)})</span>
+              ${icon('clipboard-check')} <span>Place Order for Table ${esc(currentTable)} (${money(breakdown.total)})</span>
             </button>
             <div class="pos-dispatch-hint">
               ${icon('shield-check')} <span>Directly dispatches to Order Management table board with live kitchen tracking.</span>
@@ -1779,7 +2333,75 @@ function wifiPage(){
 
 function profilePage(){
   let c = cafe();
-  return `<section class="panel form-panel"><h2 class="panel-title">Your café profile</h2><p class="panel-sub">These details belong to your café and are presented to guests on your menu.</p><form id="profile-form" style="margin-top:24px"><div class="field"><label>Guest menu café name</label><input name="name" required value="${esc(c.name)}"></div><div class="field"><label>Café slug / identifier</label><input name="slug" required value="${esc(c.slug || c.username)}"></div><div class="field"><label>Short description</label><textarea name="description">${esc(c.description)}</textarea></div><div class="settings-grid"><div class="field"><label>Opens at</label><input name="opensAt" type="time" value="${c.opensAt}"></div><div class="field"><label>Open until</label><input name="closesAt" type="time" value="${c.closesAt}"></div></div><div class="field"><label>Contact number</label><input name="contact" value="${esc(c.contact)}"></div><div class="field"><label>Address</label><input name="address" required value="${esc(c.address)}"></div><button class="primary" type="submit">Save profile</button></form></section>`;
+  const gstRate = c.gstRate !== undefined ? Number(c.gstRate) : 5;
+  const gstEnabled = c.gstEnabled !== undefined ? !!c.gstEnabled : true;
+  const scRate = c.serviceChargeRate !== undefined ? Number(c.serviceChargeRate) : 5;
+  const scEnabled = c.serviceChargeEnabled !== undefined ? !!c.serviceChargeEnabled : true;
+  const gstin = c.gstin || '';
+  const customCount = Array.isArray(c.customCharges) ? c.customCharges.filter(x => x && x.enabled).length : 0;
+
+  return `<section class="panel form-panel">
+    <div class="panel-head">
+      <div>
+        <h2 class="panel-title">Your Café Profile & Billing Settings</h2>
+        <p class="panel-sub">These details belong to your café, are printed on customer bills, and presented to guests on your menu.</p>
+      </div>
+      <button type="button" class="outline edit-cafe-charges" data-cafe="${c.id}" style="padding:6px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;">
+        ${icon('settings-2')} Advanced Charges Studio
+      </button>
+    </div>
+
+    <form id="profile-form" style="margin-top:20px">
+      <div class="field"><label>Guest menu café name</label><input name="name" required value="${esc(c.name)}"></div>
+      <div class="field"><label>Café slug / identifier</label><input name="slug" required value="${esc(c.slug || c.username)}"></div>
+      <div class="field"><label>Short description</label><textarea name="description">${esc(c.description)}</textarea></div>
+      <div class="settings-grid">
+        <div class="field"><label>Opens at</label><input name="opensAt" type="time" value="${c.opensAt}"></div>
+        <div class="field"><label>Open until</label><input name="closesAt" type="time" value="${c.closesAt}"></div>
+      </div>
+      <div class="field"><label>Contact number</label><input name="contact" value="${esc(c.contact)}"></div>
+      <div class="field"><label>Address</label><input name="address" required value="${esc(c.address)}"></div>
+
+      <div class="profile-billing-section" style="margin-top:20px;padding-top:16px;border-top:1px dashed var(--line);">
+        <h3 style="font-family:var(--serif);font-size:17px;color:var(--coffee-dark);margin:0 0 12px;display:flex;align-items:center;gap:8px;">
+          ${icon('receipt')} Taxes & Charges on Bills
+        </h3>
+        
+        <div class="settings-grid">
+          <div class="field">
+            <label>GST Rate (%)</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input name="gstRate" type="number" step="0.1" min="0" max="100" value="${gstRate}">
+              <label class="toggle-control-label" style="margin:0;white-space:nowrap;font-size:11.5px;">
+                <input name="gstEnabled" type="checkbox" ${gstEnabled ? 'checked' : ''}> Active
+              </label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Service Charge (%)</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input name="serviceChargeRate" type="number" step="0.1" min="0" max="100" value="${scRate}">
+              <label class="toggle-control-label" style="margin:0;white-space:nowrap;font-size:11.5px;">
+                <input name="serviceChargeEnabled" type="checkbox" ${scEnabled ? 'checked' : ''}> Active
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>GSTIN / Tax Registration Number</label>
+          <input name="gstin" placeholder="e.g. 19AAACH7409R1ZZ" value="${esc(gstin)}">
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:10px;">
+        <button class="primary" type="submit">Save profile & charges</button>
+        <button type="button" class="outline edit-cafe-charges" data-cafe="${c.id}" style="font-size:12px;padding:8px 14px;">
+          ${icon('settings-2')} Configure Custom Add-on Charges (${customCount})
+        </button>
+      </div>
+    </form>
+  </section>`;
 }
 
 function customerView(){
@@ -1804,9 +2426,10 @@ function customerView(){
 }
 
 function cartDrawer(){
-  let items = state.cart.map(x=>({...myMenu().find(m=>m.id===x.id),qty:x.qty})), sub = items.reduce((a,x)=>a+x.price*x.qty,0), tax = Math.round(sub*.05);
+  let items = state.cart.map(x=>({...myMenu().find(m=>m.id===x.id),qty:x.qty}));
+  let breakdown = calculateOrderBreakdown(items, cafe());
 
-  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary"><div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Standee</small></div></div><div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(sub)}</span></div><div class="sum-row"><span>Taxes (5%)</span><span>${money(tax)}</span></div><div class="sum-row total"><span>Grand total</span><span>${money(sub+tax)}</span></div><button class="primary place-order" id="place-order">Place order ${icon('arrow-right')}</button></div>`:''}</aside>`;
+  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary"><div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Standee</small></div></div><div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(breakdown.subtotal)}</span></div>${breakdown.charges.map(ch => `<div class="sum-row"><span>${esc(ch.name)}</span><span>${money(ch.amount)}</span></div>`).join('')}<div class="sum-row total"><span>Grand total</span><span>${money(breakdown.total)}</span></div><button class="primary place-order" id="place-order">Place order ${icon('arrow-right')}</button></div>`:''}</aside>`;
 }
 
 function confirmationView(){
@@ -1822,11 +2445,9 @@ function confirmationView(){
 
   // Aggregate all items across all session orders for Table XX
   const itemMap = new Map();
-  let grandTotal = 0;
   let totalItemsCount = 0;
 
   sessionOrders.forEach(ord => {
-    grandTotal += (ord.total || 0);
     (ord.items || []).forEach(itm => {
       totalItemsCount += (itm.qty || 1);
       const key = `${itm.name}__${itm.price}`;
@@ -1839,8 +2460,8 @@ function confirmationView(){
     });
   });
   const allOrderedItems = Array.from(itemMap.values());
-  const subtotal = Math.round(grandTotal / 1.05);
-  const tax = grandTotal - subtotal;
+  const breakdown = calculateOrderBreakdown(allOrderedItems, c);
+  const grandTotal = breakdown.total;
 
   let statusMessage = 'We’ve sent your order straight to the kitchen & barista bar. Make yourself comfortable.';
   let statusBadgeColor = '#9a671f';
@@ -1873,7 +2494,7 @@ function confirmationView(){
     return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button type="button" class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button type="button" class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} Explore Menu</button><button type="button" class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="background:#eef3ef;color:#35714f;">${icon('circle-check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#35714f;background:#eef3ef;padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">Table Session Reset</span><h1>Table ${esc(state.table)} Ready for New Guests</h1><p>Your previous table session has been settled offline and completed by the café. You can now browse the menu and start a new order.</p><div style="margin-top:24px;"><button type="button" class="primary" id="browse-menu-btn" style="padding:12px 24px;border-radius:12px;font-weight:700;font-size:14px;">${icon('utensils')} Open Guest Menu</button></div></section></main>`;
   }
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} + Order More Items</button><button class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="${isReady ? 'background:#d7eee1;color:#287449;' : isPrep ? 'background:#ece1fa;color:#6b3bb8;' : ''}">${icon(isReady ? 'bell' : isPrep ? 'coffee' : 'check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${statusBadgeColor};background:${statusBadgeBg};padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">${statusBadgeText}</span><h1>Table ${esc(state.table)} — Active Dining Orders</h1><p>${statusMessage}</p><div class="session-cumulative-card guest-total-bill-card"><div class="session-cumulative-head"><div><h3>${icon('receipt')} Table ${esc(state.table)} Running Bill & Item Summary</h3><p class="panel-sub" style="margin:4px 0 0;font-size:11.5px;color:var(--muted);">All items ordered for this table across ${sessionOrders.length} ${sessionOrders.length === 1 ? 'order batch' : 'order batches'} until bill settlement</p></div><span class="session-cumulative-badge">${totalItemsCount} total items</span></div><div class="session-order-items">${allOrderedItems.map(i => `<div class="session-item-row"><span class="session-item-name"><b class="guest-qty-pill">${i.qty}×</b> ${esc(i.name)} <small class="item-unit-pill">(${money(i.price)} ea)</small></span><strong class="session-item-price">${money(i.price * i.qty)}</strong></div>`).join('')}</div><div class="guest-bill-breakdown"><div class="guest-bill-row"><span>Items Subtotal</span><b>${money(subtotal)}</b></div><div class="guest-bill-row"><span>Taxes & GST (5%)</span><b>${money(tax)}</b></div><div class="session-cumulative-total"><div style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;color:var(--coffee-dark);">Total Table Bill (Running Total)</span><small style="font-size:11px;font-weight:600;color:var(--muted);">💳 Pay at counter / offline when finished dining</small></div><strong class="grand-total-amount">${money(grandTotal)}</strong></div></div></div><div class="session-orders-wrap"><h3 style="margin:0 0 10px;font-size:16px;font-family:var(--serif);color:var(--coffee-dark);display:flex;justify-content:space-between;align-items:center;"><span>${icon('clipboard-list')} Order Batches Placed (${sessionOrders.length})</span><span class="session-order-count-chip">${sessionOrders.length} ${sessionOrders.length === 1 ? 'Batch' : 'Batches'}</span></h3>${sessionOrders.map((ord, idx) => `<article class="session-order-card ${idx === 0 ? 'latest-batch-card' : ''}"><div class="session-order-head"><div class="session-order-id-group"><span class="session-order-id">Order #${esc(ord.id)} ${idx === 0 ? '<span class="latest-tag-badge">Latest Order</span>' : `<span class="batch-num-badge">Batch #${sessionOrders.length - idx}</span>`}</span><span class="session-order-time">${icon('clock-3')} Placed at ${esc(ord.time || 'Today')} · Table ${esc(ord.table)}</span></div><span class="status ${statusClass(ord.status)}">${ord.status === 'Ready' ? '🎉 Ready' : ord.status === 'Preparing' ? '☕ Preparing' : ord.status}</span></div><div class="order-mini-tracker"><div class="tracker-step ${['New','Preparing','Processing','Ready','Completed'].includes(ord.status)?'active':''}">Received</div><div class="tracker-step ${['Preparing','Processing','Ready','Completed'].includes(ord.status)?(ord.status==='Preparing'?'preparing active':'active'):''}">Preparing</div><div class="tracker-step ${['Ready','Completed'].includes(ord.status)?(ord.status==='Ready'?'ready active':'active'):''}">Ready</div><div class="tracker-step ${ord.status==='Completed'?'active':''}">Served</div></div><div class="session-order-items">${(ord.items || []).map(i => `<div class="session-item-row"><span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span><span class="session-item-price">${money(i.price * i.qty)}</span></div>`).join('')}</div><div class="session-order-subtotal"><span>Batch Amount (incl. tax)</span><strong>${money(ord.total)}</strong></div></article>`).join('')}</div><div class="wifi-box"><h3>${icon('wifi')} Café Wi-Fi</h3><div class="wifi-detail">Network: <b>${esc(c.wifi.ssid)}</b></div><div class="wifi-detail">Password: <b id="wifi-pass">${esc(c.wifi.password)}</b> <button type="button" class="outline" id="copy-wifi" style="padding:4px 8px;margin-left:6px;font-size:11px;border-radius:6px;">Copy</button></div></div><div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:22px;width:100%;max-width:380px;"><button type="button" class="primary" id="new-order" style="width:100%;border-radius:12px;padding:13px 20px;font-size:14px;font-weight:700;">${icon('plus')} + Order More Items for Table ${esc(state.table)}</button><button type="button" class="outline" id="btn-refresh-guest-status" style="width:100%;border-radius:12px;padding:10px 16px;font-size:12px;font-weight:600;">${icon('refresh-cw')} Refresh Order Status</button></div></section></main>`;
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions"><button type="button" class="outline btn-print-table-bill" data-print-table="${esc(state.table)}" style="padding:6px 14px;font-size:12px;border-radius:18px;font-weight:700;background:#fff;">${icon('printer')} Print Bill</button><button class="primary" id="browse-menu-btn" style="padding:6px 14px;font-size:12px;border-radius:18px;">${icon('plus')} + Order More</button><button class="staff-link-btn" id="go-login" title="Staff Portal">${icon('key-round')}</button></div></nav><section class="confirmation"><div class="confirm-icon" style="${isReady ? 'background:#d7eee1;color:#287449;' : isPrep ? 'background:#ece1fa;color:#6b3bb8;' : ''}">${icon(isReady ? 'bell' : isPrep ? 'coffee' : 'check')}</div><span style="font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${statusBadgeColor};background:${statusBadgeBg};padding:5px 12px;border-radius:15px;display:inline-block;margin-bottom:10px;">${statusBadgeText}</span><h1>Table ${esc(state.table)} — Active Dining Orders</h1><p>${statusMessage}</p><div class="session-cumulative-card guest-total-bill-card"><div class="session-cumulative-head"><div><h3>${icon('receipt')} Table ${esc(state.table)} Running Bill & Item Summary</h3><p class="panel-sub" style="margin:4px 0 0;font-size:11.5px;color:var(--muted);">All items ordered for this table across ${sessionOrders.length} ${sessionOrders.length === 1 ? 'order batch' : 'order batches'} until bill settlement</p></div><div style="display:flex;gap:6px;align-items:center;"><button type="button" class="outline btn-print-table-bill" data-print-table="${esc(state.table)}" style="padding:4px 10px;font-size:11px;border-radius:6px;font-weight:700;background:#fff;">${icon('printer')} Print Receipt</button><span class="session-cumulative-badge">${totalItemsCount} total items</span></div></div><div class="session-order-items">${allOrderedItems.map(i => `<div class="session-item-row"><span class="session-item-name"><b class="guest-qty-pill">${i.qty}×</b> ${esc(i.name)} <small class="item-unit-pill">(${money(i.price)} ea)</small></span><strong class="session-item-price">${money(i.price * i.qty)}</strong></div>`).join('')}</div><div class="guest-bill-breakdown"><div class="guest-bill-row"><span>Items Subtotal</span><b>${money(breakdown.subtotal)}</b></div>${breakdown.charges.map(ch => `<div class="guest-bill-row"><span>${esc(ch.name)}</span><b>${money(ch.amount)}</b></div>`).join('')}<div class="session-cumulative-total"><div style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:14px;color:var(--coffee-dark);">Total Table Bill (Running Total)</span><small style="font-size:11px;font-weight:600;color:var(--muted);">💳 Pay at counter / offline when finished dining</small></div><strong class="grand-total-amount">${money(grandTotal)}</strong></div></div></div><div class="session-orders-wrap"><h3 style="margin:0 0 10px;font-size:16px;font-family:var(--serif);color:var(--coffee-dark);display:flex;justify-content:space-between;align-items:center;"><span>${icon('clipboard-list')} Order Batches Placed (${sessionOrders.length})</span><span class="session-order-count-chip">${sessionOrders.length} ${sessionOrders.length === 1 ? 'Batch' : 'Batches'}</span></h3>${sessionOrders.map((ord, idx) => `<article class="session-order-card ${idx === 0 ? 'latest-batch-card' : ''}"><div class="session-order-head"><div class="session-order-id-group"><span class="session-order-id">Order #${esc(ord.id)} ${idx === 0 ? '<span class="latest-tag-badge">Latest Order</span>' : `<span class="batch-num-badge">Batch #${sessionOrders.length - idx}</span>`}</span><span class="session-order-time">${icon('clock-3')} Placed at ${esc(ord.time || 'Today')} · Table ${esc(ord.table)}</span></div><div style="display:flex;gap:6px;align-items:center;"><button type="button" class="outline btn-print-order-bill" data-print-order="${esc(ord.id)}" style="padding:2px 8px;font-size:10px;font-weight:700;border-radius:6px;background:#fff;" title="Print batch slip">${icon('printer')} Slip</button><span class="status ${statusClass(ord.status)}">${ord.status === 'Ready' ? '🎉 Ready' : ord.status === 'Preparing' ? '☕ Preparing' : ord.status}</span></div></div><div class="order-mini-tracker"><div class="tracker-step ${['New','Preparing','Processing','Ready','Completed'].includes(ord.status)?'active':''}">Received</div><div class="tracker-step ${['Preparing','Processing','Ready','Completed'].includes(ord.status)?(ord.status==='Preparing'?'preparing active':'active'):''}">Preparing</div><div class="tracker-step ${['Ready','Completed'].includes(ord.status)?(ord.status==='Ready'?'ready active':'active'):''}">Ready</div><div class="tracker-step ${ord.status==='Completed'?'active':''}">Served</div></div><div class="session-order-items">${(ord.items || []).map(i => `<div class="session-item-row"><span class="session-item-name"><b>${i.qty}×</b> ${esc(i.name)}</span><span class="session-item-price">${money(i.price * i.qty)}</span></div>`).join('')}</div><div class="session-order-subtotal"><span>Batch Amount (incl. taxes & charges)</span><strong>${money(ord.total)}</strong></div></article>`).join('')}</div><div class="wifi-box"><h3>${icon('wifi')} Café Wi-Fi</h3><div class="wifi-detail">Network: <b>${esc(c.wifi.ssid)}</b></div><div class="wifi-detail">Password: <b id="wifi-pass">${esc(c.wifi.password)}</b> <button type="button" class="outline" id="copy-wifi" style="padding:4px 8px;margin-left:6px;font-size:11px;border-radius:6px;">Copy</button></div></div><div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:22px;width:100%;max-width:380px;"><button type="button" class="primary" id="new-order" style="width:100%;border-radius:12px;padding:13px 20px;font-size:14px;font-weight:700;">${icon('plus')} + Order More Items for Table ${esc(state.table)}</button><button type="button" class="outline" id="btn-refresh-guest-status" style="width:100%;border-radius:12px;padding:10px 16px;font-size:12px;font-weight:600;">${icon('refresh-cw')} Refresh Order Status</button></div></section></main>`;
 }
 
 function bind(){
@@ -1949,12 +2570,37 @@ function bind(){
   
   $('#add-cafe')?.addEventListener('click', () => cafeModal());
   $$('.edit-cafe').forEach(b => b.onclick = () => cafeModal(db.cafes.find(c => c.id === b.dataset.cafe)));
+  $$('.edit-cafe-charges').forEach(b => b.onclick = () => cafeChargesModal(db.cafes.find(c => c.id === b.dataset.cafe) || cafe()));
   $$('.status-toggle').forEach(b => b.onclick = () => {
     let c = db.cafes.find(c => c.id === b.dataset.cafe);
     c.status = c.status === 'Active' ? 'Inactive' : 'Active';
     save();
     render();
     toast(`Café ${c.status.toLowerCase()}`);
+  });
+
+  // Printable Bill Receipt Actions
+  $$('.btn-print-table-bill').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const tbl = b.dataset.printTable;
+      const billData = getBillData('table', tbl);
+      printBillWindow(billData);
+    };
+  });
+
+  $$('.btn-print-order-bill').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const ordId = b.dataset.printOrder;
+      const billData = getBillData('order', ordId);
+      printBillWindow(billData);
+    };
+  });
+
+  $('#pos-btn-preview-bill')?.addEventListener('click', () => {
+    const billData = getBillData('pos');
+    printBillWindow(billData);
   });
 
   $$('.view-cafe-qr').forEach(b => b.onclick = () => qrModal(db.cafes.find(c => c.id === b.dataset.cafe)));
@@ -2119,10 +2765,15 @@ function bind(){
   $('#profile-form')?.addEventListener('submit', e => {
     e.preventDefault();
     let f = new FormData(e.target);
-    Object.assign(cafe(), Object.fromEntries(f));
+    let data = Object.fromEntries(f);
+    data.gstRate = parseFloat(data.gstRate) || 0;
+    data.gstEnabled = !!f.get('gstEnabled');
+    data.serviceChargeRate = parseFloat(data.serviceChargeRate) || 0;
+    data.serviceChargeEnabled = !!f.get('serviceChargeEnabled');
+    Object.assign(cafe(), data);
     save();
     render();
-    toast('Café profile updated');
+    toast('Café profile & billing charges updated');
   });
 
   // QR Studio specific binds
@@ -2412,9 +3063,236 @@ function filterOrders(){
   }
 }
 
+// Interactive Charges & Surcharges Management Modal
+function cafeChargesModal(cafeObj){
+  if (!cafeObj) return;
+  const cfg = getCafeCharges(cafeObj);
+  let currentCustom = JSON.parse(JSON.stringify(cfg.customCharges || []));
+
+  function getModalHtml() {
+    return `<div class="charges-modal-container">
+      <header class="charges-modal-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div>
+          <h2 style="font-family:var(--serif);font-size:22px;color:var(--coffee-dark);margin:0 0 4px;display:flex;align-items:center;gap:8px;">
+            ${icon('receipt')} Taxes & Charges Studio — ${esc(cafeObj.name)}
+          </h2>
+          <p class="panel-sub" style="margin:0;font-size:12px;">Configure GST %, Service Charge %, custom surcharges, and tax identification number for printable bills and guest checkout.</p>
+        </div>
+        <button type="button" class="icon-btn modal-close" style="padding:6px;border-radius:8px;">${icon('x')}</button>
+      </header>
+
+      <form id="charges-config-form">
+        <!-- Section 1: Standard Govt & Service Charges -->
+        <div class="charges-config-section">
+          <div class="charge-section-title">${icon('shield-check')} 1. Standard Taxes & Service Charge</div>
+          
+          <div class="settings-grid">
+            <div class="field" style="margin-bottom:12px;">
+              <label>GST / Tax Rate (%)</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input name="gstRate" id="cfg-gst-rate" type="number" step="0.1" min="0" max="100" value="${cfg.gstRate}" required>
+                <label class="toggle-control-label" style="margin:0;white-space:nowrap;font-size:12px;">
+                  <input name="gstEnabled" id="cfg-gst-enabled" type="checkbox" ${cfg.gstEnabled ? 'checked' : ''}> Active
+                </label>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:12px;">
+              <label>Service Charge (%)</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input name="serviceChargeRate" id="cfg-sc-rate" type="number" step="0.1" min="0" max="100" value="${cfg.serviceChargeRate}" required>
+                <label class="toggle-control-label" style="margin:0;white-space:nowrap;font-size:12px;">
+                  <input name="serviceChargeEnabled" id="cfg-sc-enabled" type="checkbox" ${cfg.serviceChargeEnabled ? 'checked' : ''}> Active
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="field" style="margin-bottom:0;">
+            <label>GSTIN / Tax Registration Number (Printed on Bills)</label>
+            <input name="gstin" id="cfg-gstin" placeholder="e.g. 19AAACH7409R1ZZ" value="${esc(cfg.gstin || '')}" maxlength="30">
+          </div>
+        </div>
+
+        <!-- Section 2: Custom Add-on Surcharges -->
+        <div class="charges-config-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div class="charge-section-title" style="margin-bottom:0;">${icon('plus-circle')} 2. Custom Surcharges & Add-on Fees</div>
+            <button type="button" class="outline" id="btn-add-custom-charge" style="font-size:11.5px;padding:4px 10px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
+              ${icon('plus')} Add Fee
+            </button>
+          </div>
+          <p class="panel-sub" style="font-size:11.5px;margin:0 0 10px;">Add packaging fees, AC restaurant surcharge, night convenience fees, or local municipal cess.</p>
+
+          <div class="custom-charges-list" id="custom-charges-container">
+            ${currentCustom.length ? currentCustom.map((c, idx) => `
+              <div class="custom-charge-row" data-index="${idx}">
+                <div class="field" style="margin:0;flex:2;">
+                  <label style="font-size:10.5px;">Charge Name</label>
+                  <input type="text" class="custom-ch-name" value="${esc(c.name || '')}" placeholder="e.g. Packaging Fee" required>
+                </div>
+                <div class="field" style="margin:0;flex:1.2;">
+                  <label style="font-size:10.5px;">Type</label>
+                  <select class="select custom-ch-type" style="height:38px;">
+                    <option value="percent" ${c.type === 'percent' ? 'selected' : ''}>Percentage (%)</option>
+                    <option value="flat" ${c.type === 'flat' ? 'selected' : ''}>Flat Amount (₹)</option>
+                  </select>
+                </div>
+                <div class="field" style="margin:0;flex:1;">
+                  <label style="font-size:10.5px;">Rate / Amount</label>
+                  <input type="number" step="0.1" min="0" class="custom-ch-rate" value="${c.rate !== undefined ? c.rate : 0}" required>
+                </div>
+                <div class="field" style="margin:0;display:flex;flex-direction:column;justify-content:flex-end;">
+                  <label class="toggle-control-label" style="margin-bottom:8px;font-size:11px;">
+                    <input type="checkbox" class="custom-ch-enabled" ${c.enabled ? 'checked' : ''}> Active
+                  </label>
+                </div>
+                <button type="button" class="soft btn-del-custom-charge" data-index="${idx}" style="color:#a83232;height:38px;padding:0 8px;margin-top:19px;" title="Remove this charge">${icon('trash-2')}</button>
+              </div>
+            `).join('') : `<div class="empty" style="padding:14px;font-size:12px;text-align:center;border:1px dashed var(--line);border-radius:8px;">No custom charges added yet. Click "+ Add Fee" above to create packaging fees, cess, or delivery charges.</div>`}
+          </div>
+        </div>
+
+        <!-- Section 3: Live Bill Calculation Simulation -->
+        <div class="charges-config-section">
+          <div class="charge-section-title">${icon('calculator')} 3. Live Bill Calculation Preview (Sample ₹500 Order)</div>
+          <div class="live-bill-calc-simulation" id="live-simulation-box">
+            <!-- Dynamic simulation content rendered via JS -->
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:20px;display:flex;justify-content:space-between;align-items:center;">
+          <button type="button" class="outline modal-close">Cancel</button>
+          <button type="submit" class="primary" style="padding:10px 24px;font-weight:700;">${icon('check')} Save Charges & Rates</button>
+        </div>
+      </form>
+    </div>`;
+  }
+
+  modal(getModalHtml());
+
+  function syncAndSimulate() {
+    const form = $('#charges-config-form');
+    if (!form) return;
+    const gstRate = parseFloat($('#cfg-gst-rate')?.value) || 0;
+    const gstEnabled = $('#cfg-gst-enabled')?.checked || false;
+    const scRate = parseFloat($('#cfg-sc-rate')?.value) || 0;
+    const scEnabled = $('#cfg-sc-enabled')?.checked || false;
+
+    // Collect custom charges
+    const customRows = $$('.custom-charge-row');
+    const customList = [];
+    customRows.forEach(row => {
+      const name = ($('.custom-ch-name', row)?.value || '').trim();
+      const type = $('.custom-ch-type', row)?.value || 'percent';
+      const rate = parseFloat($('.custom-ch-rate', row)?.value) || 0;
+      const enabled = $('.custom-ch-enabled', row)?.checked || false;
+      if (name) {
+        customList.push({ name, type, rate, enabled });
+      }
+    });
+
+    const mockCafe = {
+      ...cafeObj,
+      gstRate,
+      gstEnabled,
+      serviceChargeRate: scRate,
+      serviceChargeEnabled: scEnabled,
+      customCharges: customList
+    };
+
+    const mockItems = [{ name: 'Sample Item (Cold Brew & Croissant)', price: 500, qty: 1 }];
+    const breakdown = calculateOrderBreakdown(mockItems, mockCafe);
+
+    const simBox = $('#live-simulation-box');
+    if (simBox) {
+      simBox.innerHTML = `
+        <div class="sim-row"><span>Items Subtotal:</span><b>${money(breakdown.subtotal)}</b></div>
+        ${breakdown.charges.map(ch => `
+          <div class="sim-row"><span style="color:#7a4e21;">${esc(ch.name)}:</span><b>${money(ch.amount)}</b></div>
+        `).join('')}
+        <div class="sim-row total" style="margin-top:6px;padding-top:6px;border-top:1.5px solid var(--line);font-size:14px;color:#1b683f;">
+          <span>Sample Grand Total:</span><strong>${money(breakdown.total)}</strong>
+        </div>
+      `;
+    }
+  }
+
+  function bindModalEvents() {
+    $('.modal-close')?.addEventListener('click', closeModal);
+
+    $('#btn-add-custom-charge')?.addEventListener('click', () => {
+      // Pull latest custom list before re-rendering
+      const rows = $$('.custom-charge-row');
+      const updated = [];
+      rows.forEach(r => {
+        const name = ($('.custom-ch-name', r)?.value || '').trim();
+        const type = $('.custom-ch-type', r)?.value || 'percent';
+        const rate = parseFloat($('.custom-ch-rate', r)?.value) || 0;
+        const enabled = $('.custom-ch-enabled', r)?.checked || false;
+        updated.push({ name, type, rate, enabled });
+      });
+      updated.push({ name: 'Packaging Fee', type: 'flat', rate: 20, enabled: true });
+      currentCustom = updated;
+      modal(getModalHtml());
+      bindModalEvents();
+      syncAndSimulate();
+    });
+
+    $$('.btn-del-custom-charge').forEach(btn => {
+      btn.onclick = () => {
+        const idx = parseInt(btn.dataset.index, 10);
+        currentCustom.splice(idx, 1);
+        modal(getModalHtml());
+        bindModalEvents();
+        syncAndSimulate();
+      };
+    });
+
+    $('#charges-config-form')?.addEventListener('input', syncAndSimulate);
+    $('#charges-config-form')?.addEventListener('change', syncAndSimulate);
+
+    $('#charges-config-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const gstRate = parseFloat($('#cfg-gst-rate')?.value) || 0;
+      const gstEnabled = $('#cfg-gst-enabled')?.checked || false;
+      const scRate = parseFloat($('#cfg-sc-rate')?.value) || 0;
+      const scEnabled = $('#cfg-sc-enabled')?.checked || false;
+      const gstin = ($('#cfg-gstin')?.value || '').trim();
+
+      const customRows = $$('.custom-charge-row');
+      const customCharges = [];
+      customRows.forEach(row => {
+        const name = ($('.custom-ch-name', row)?.value || '').trim();
+        const type = $('.custom-ch-type', row)?.value || 'percent';
+        const rate = parseFloat($('.custom-ch-rate', row)?.value) || 0;
+        const enabled = $('.custom-ch-enabled', row)?.checked || false;
+        if (name) {
+          customCharges.push({ name, type, rate, enabled });
+        }
+      });
+
+      cafeObj.gstRate = gstRate;
+      cafeObj.gstEnabled = gstEnabled;
+      cafeObj.serviceChargeRate = scRate;
+      cafeObj.serviceChargeEnabled = scEnabled;
+      cafeObj.gstin = gstin;
+      cafeObj.customCharges = customCharges;
+
+      save();
+      closeModal();
+      render();
+      toast(`✅ Taxes and billing charges for "${cafeObj.name}" successfully updated!`);
+    });
+  }
+
+  bindModalEvents();
+  syncAndSimulate();
+}
+
 function cafeModal(edit){
   let isEdit = !!edit;
-  modal(`<h2>${isEdit ? 'Edit café' : 'Create a café account'}</h2><form id="cafe-form"><div class="field"><label>Café name</label><input name="name" required value="${esc(edit?.name || '')}"></div><div class="settings-grid"><div class="field"><label>Username / Slug</label><input name="username" required value="${esc(edit?.username || '')}"></div><div class="field"><label>Password</label><input name="password" required value="${esc(edit?.password || '')}"></div></div><div class="field"><label>Contact</label><input name="contact" required value="${esc(edit?.contact || '')}"></div><div class="field"><label>Address</label><input name="address" required value="${esc(edit?.address || '')}"></div>${isEdit ? `<div class="field"><label>Anti-Tamper Security Key (Admin Only)</label><div style="display:flex;gap:8px;align-items:center"><input id="modal-key-display" value="${esc(edit.qrSecret || '')}" readonly style="background:#f5f3ef;font-family:monospace;font-size:11px;"><button type="button" class="outline" id="modal-btn-rotate-key" style="white-space:nowrap;padding:6px 12px;font-size:11px;">${icon('refresh-cw')} Rotate Key</button></div><small style="font-size:11px;color:var(--muted)">Rotating this key will invalidate older physical QR standees for this café.</small></div>` : ''}<div class="modal-actions"><button type="button" class="outline modal-close">Cancel</button>${isEdit ? `<button type="button" class="danger" id="delete-cafe">Delete</button>` : ''}<button class="primary">${isEdit ? 'Save changes' : 'Create café'}</button></div></form>`);
+  modal(`<h2>${isEdit ? 'Edit café' : 'Create a café account'}</h2><form id="cafe-form"><div class="field"><label>Café name</label><input name="name" required value="${esc(edit?.name || '')}"></div><div class="settings-grid"><div class="field"><label>Username / Slug</label><input name="username" required value="${esc(edit?.username || '')}"></div><div class="field"><label>Password</label><input name="password" required value="${esc(edit?.password || '')}"></div></div><div class="field"><label>Contact</label><input name="contact" required value="${esc(edit?.contact || '')}"></div><div class="field"><label>Address</label><input name="address" required value="${esc(edit?.address || '')}"></div>${isEdit ? `<div class="field"><label>Anti-Tamper Security Key (Admin Only)</label><div style="display:flex;gap:8px;align-items:center"><input id="modal-key-display" value="${esc(edit.qrSecret || '')}" readonly style="background:#f5f3ef;font-family:monospace;font-size:11px;"><button type="button" class="outline" id="modal-btn-rotate-key" style="white-space:nowrap;padding:6px 12px;font-size:11px;">${icon('refresh-cw')} Rotate Key</button></div><small style="font-size:11px;color:var(--muted)">Rotating this key will invalidate older physical QR standees for this café.</small></div><div style="margin-top:12px;"><button type="button" class="outline edit-cafe-charges" data-cafe="${edit.id}" style="font-size:11.5px;padding:6px 12px;font-weight:700;">${icon('settings-2')} Configure GST, Service Charges & Taxes</button></div>` : ''}<div class="modal-actions"><button type="button" class="outline modal-close">Cancel</button>${isEdit ? `<button type="button" class="danger" id="delete-cafe">Delete</button>` : ''}<button class="primary">${isEdit ? 'Save changes' : 'Create café'}</button></div></form>`);
   const closeBtn = $('.modal-close');
   if(closeBtn) closeBtn.onclick = closeModal;
 
@@ -2426,6 +3304,11 @@ function cafeModal(edit){
       save();
       toast('Security key rotated!');
     }
+  });
+
+  $('.edit-cafe-charges')?.addEventListener('click', () => {
+    closeModal();
+    cafeChargesModal(edit);
   });
 
   const form = $('#cafe-form');
@@ -2442,6 +3325,12 @@ function cafeModal(edit){
           slug: v.username.toLowerCase(),
           qrSecret: `eng_sec_${id.toLowerCase()}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
           status: 'Active',
+          gstRate: 5,
+          gstEnabled: true,
+          serviceChargeRate: 5,
+          serviceChargeEnabled: true,
+          gstin: '',
+          customCharges: [],
           wifi: { ssid: `${v.name.replace(/\s+/g,'_')}_Guest`, password: 'Welcome@123' },
           description: 'A beautiful local café.',
           image: cafe().image
@@ -2589,8 +3478,7 @@ async function placeOrder(){
     let m = myMenu().find(m => m.id === x.id);
     return { name: m.name, qty: x.qty, price: m.price, isNew: true };
   });
-  let subtotal = items.reduce((a, i) => a + i.qty * i.price, 0);
-  let tax = Math.round(subtotal * 0.05);
+  let breakdown = calculateOrderBreakdown(items, cafe().id);
   let id = `ORD-${Math.max(1000, ...db.orders.map(o => +o.id.split('-')[1] || 0)) + 1}`;
   let o = {
     id,
@@ -2599,7 +3487,10 @@ async function placeOrder(){
     table: String(table).padStart(2, '0'),
     qrVerified: true,
     items,
-    total: subtotal + tax,
+    subtotal: breakdown.subtotal,
+    charges: breakdown.charges,
+    tax: breakdown.tax,
+    total: breakdown.total,
     status: 'New',
     isNew: true,
     time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
@@ -2619,7 +3510,7 @@ async function placeOrder(){
     fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...o, cafeName: cafe().name, subtotal, tax, createdAt: new Date().toLocaleString('en-IN') })
+      body: JSON.stringify({ ...o, cafeName: cafe().name, subtotal: breakdown.subtotal, tax: breakdown.tax, createdAt: new Date().toLocaleString('en-IN') })
     }).catch(()=>{});
   } catch(error) {}
   state.cart = [];
