@@ -280,7 +280,14 @@ const defaultState = {
   orderViewMode: 'tables',
   orderStatusFilter: 'all',
   orderSearchQuery: '',
-  expandedTables: {}
+  expandedTables: {},
+  // Staff POS / Take Order state
+  staffCart: [],
+  staffTable: '01',
+  staffCustomerName: '',
+  staffCustomerNotes: '',
+  staffCategory: 'All',
+  staffSearchQuery: ''
 };
 
 function loadSession(){
@@ -323,6 +330,13 @@ function saveSession(){
       orderPlacedAt: state.orderPlacedAt || null,
       cartOpen: !!state.cartOpen,
       selectedQrTable: state.selectedQrTable || '01',
+      // Staff POS state
+      staffCart: state.staffCart || [],
+      staffTable: state.staffTable || '01',
+      staffCustomerName: state.staffCustomerName || '',
+      staffCustomerNotes: state.staffCustomerNotes || '',
+      staffCategory: state.staffCategory || 'All',
+      staffSearchQuery: state.staffSearchQuery || '',
       timestamp: Date.now()
     };
     localStorage.setItem('juniper-session', JSON.stringify(sessionData));
@@ -884,7 +898,8 @@ const navs = {
     ['settings', 'Settings', 'settings']
   ],
   cafe: [
-    ['orders', 'Orders', 'clipboard-list'],
+    ['orders', 'Order Board', 'clipboard-list'],
+    ['pos', 'Take Order', 'plus-circle'],
     ['dashboard', 'Dashboard', 'layout-dashboard'],
     ['menu', 'Menu', 'utensils'],
     ['categories', 'Categories', 'tags'],
@@ -905,7 +920,7 @@ function sidebar(){
 
 function dashboardView(){
   let adminName = db.platform.adminName || 'Aarav Mehta';
-  return `<div class="app-shell">${sidebar()}<main class="main"><header class="topbar"><div><div class="eyebrow">${state.role==='admin'?`Welcome back, ${esc(adminName)}`:`Good morning, ${esc(cafe().name)}`}</div><h1 class="page-title">${titleForPage()}</h1></div><div class="top-actions"><span class="date-chip">${new Date().toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'numeric'})}</span><button class="outline" id="header-visit-menu" title="Open Guest Menu" style="font-size:12px;padding:8px 12px;">${icon('external-link')} View Live Menu</button>${state.role==='admin'&&state.page==='cafes'?`<button class="primary" id="add-cafe">${icon('plus')} Add café</button>`:state.role==='cafe'&&state.page==='menu'?`<button class="primary" id="add-menu">${icon('plus')} Add item</button>`:''}</div></header>${pageContent()}</main></div>`;
+  return `<div class="app-shell">${sidebar()}<main class="main"><header class="topbar"><div><div class="eyebrow">${state.role==='admin'?`Welcome back, ${esc(adminName)}`:`Good morning, ${esc(cafe().name)}`}</div><h1 class="page-title">${titleForPage()}</h1></div><div class="top-actions"><span class="date-chip">${new Date().toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'numeric'})}</span><button class="outline" id="header-visit-menu" title="Open Guest Menu" style="font-size:12px;padding:8px 12px;">${icon('external-link')} View Live Menu</button>${state.role==='cafe'?`<button class="primary" id="header-take-order" style="font-size:12px;padding:8px 14px;background:#3c2419;">${icon('plus-circle')} Take Order</button>`:''}${state.role==='admin'&&state.page==='cafes'?`<button class="primary" id="add-cafe">${icon('plus')} Add café</button>`:state.role==='cafe'&&state.page==='menu'?`<button class="primary" id="add-menu">${icon('plus')} Add item</button>`:''}</div></header>${pageContent()}</main></div>`;
 }
 
 function titleForPage(){
@@ -913,7 +928,8 @@ function titleForPage(){
     dashboard: 'Dashboard',
     cafes: 'Café directory & QR links',
     accounts: 'Café accounts',
-    orders: 'Order management',
+    orders: 'Order management & table board',
+    pos: 'Take order for table (Counter POS)',
     menu: 'Your menu',
     categories: 'Categories',
     qr: 'QR Codes & Table Stands',
@@ -941,6 +957,7 @@ function pageContent(){
     return adminDash();
   }
   if(state.page === 'orders') return ordersPage();
+  if(state.page === 'pos') return posPage();
   if(state.page === 'menu') return menuPage();
   if(state.page === 'categories') return categoriesPage();
   if(state.page === 'qr') return qrPage();
@@ -1112,7 +1129,8 @@ function tableSectionView(g, isExpanded) {
             </div>
           </div>
         </div>
-        <div class="table-head-right">
+        <div class="table-head-right" style="display:flex;align-items:center;gap:8px;">
+          <button type="button" class="primary btn-take-order-table" data-pos-table="${esc(g.table)}" style="padding:6px 12px;font-size:11.5px;border-radius:8px;font-weight:700;">${icon('plus-circle')} Take Order</button>
           <button type="button" class="table-expand-btn" data-toggle-table="${g.table}">
             <span>${isExpanded ? 'Hide' : 'Details'}</span>
             ${icon(isExpanded ? 'chevron-up' : 'chevron-down')}
@@ -1123,7 +1141,8 @@ function tableSectionView(g, isExpanded) {
         <div class="vacant-table-body">
           <div style="font-size:28px;margin-bottom:8px;">🛋️</div>
           <strong style="color:var(--coffee-dark);font-size:15px;">Table ${esc(g.table)} is Clean & Ready for New Customers</strong>
-          <p class="panel-sub" style="margin:6px 0 0;font-size:12px;">Previous guest's bill has been completely settled offline and closed. When a new customer scans the Table ${esc(g.table)} QR code, their fresh order and running bill will start here cleanly from ₹0.</p>
+          <p class="panel-sub" style="margin:6px 0 14px;font-size:12px;">Previous guest's bill has been completely settled offline and closed. Guests can scan the Table ${esc(g.table)} QR code or staff can place an order directly from the counter.</p>
+          <button type="button" class="primary btn-take-order-table" data-pos-table="${esc(g.table)}" style="font-size:12px;padding:9px 18px;border-radius:8px;font-weight:700;">${icon('plus-circle')} Take Order for Table ${esc(g.table)}</button>
         </div>
       </div>` : ''}
     </article>`;
@@ -1157,7 +1176,8 @@ function tableSectionView(g, isExpanded) {
           </div>
         </div>
       </div>
-      <div class="table-head-right">
+      <div class="table-head-right" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="outline btn-add-items-table" data-pos-table="${esc(g.table)}" style="padding:6px 12px;font-size:11.5px;border-radius:8px;font-weight:700;background:#fff;">${icon('plus')} + Add Items</button>
         <button type="button" class="table-expand-btn" data-toggle-table="${g.table}">
           <span>${isExpanded ? 'Hide Details' : 'View Orders'}</span>
           ${icon(isExpanded ? 'chevron-up' : 'chevron-down')}
@@ -1218,6 +1238,7 @@ function tableSectionView(g, isExpanded) {
           </div>
         </div>
         <div class="bill-actions-right">
+          <button type="button" class="outline btn-add-items-table" data-pos-table="${esc(g.table)}" style="font-size:12px;padding:9px 14px;border-radius:8px;font-weight:700;">${icon('plus-circle')} + Add Items for Table ${esc(g.table)}</button>
           ${isNewTable ? `<button type="button" class="outline btn-ack-table" data-ack-table="${g.table}">${icon('check')} Acknowledge & Start Preparing</button>` : ''}
           <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Customer has paid offline. Stop this guest's bill and reset table for next customer.">${icon('circle-check')} Complete & Restart Table (Bill Paid Offline)</button>
         </div>
@@ -1231,7 +1252,7 @@ function renderTableSections(filteredGroups) {
     return `<div class="empty table-empty-state">
       <div style="font-size:32px;margin-bottom:8px;">🛋️</div>
       <strong>No table orders match your current filter.</strong>
-      <p class="panel-sub" style="margin-top:6px;">New orders placed by guests from table QR standees will automatically appear here organized by table.</p>
+      <p class="panel-sub" style="margin-top:6px;">New orders placed by guests from table QR standees or staff will automatically appear here organized by table.</p>
     </div>`;
   }
   return `<div class="table-sections-grid">
@@ -1273,22 +1294,25 @@ function ordersPage(){
         <h2 class="panel-title">Table Orders & Service Board</h2>
         <p class="panel-sub">Each dining table session is independently tracked with live ring alerts & offline bill settlement</p>
       </div>
-      <div class="orders-quick-metrics">
-        <div class="metric-pill ${newTablesCount > 0 ? 'alert' : ''}">
-          <span class="metric-icon">${icon('bell-ring')}</span>
-          <span><b>${newTablesCount}</b> New Table ${newTablesCount === 1 ? 'Alert' : 'Alerts'}</span>
-        </div>
-        <div class="metric-pill active">
-          <span class="metric-icon">${icon('armchair')}</span>
-          <span><b>${totalActiveTables}</b> Active Dining ${totalActiveTables === 1 ? 'Table' : 'Tables'}</span>
-        </div>
-        <div class="metric-pill">
-          <span class="metric-icon">${icon('shield-check')}</span>
-          <span><b>${vacantTablesCount}</b> Ready / Vacant</span>
-        </div>
-        <div class="metric-pill">
-          <span class="metric-icon">${icon('receipt')}</span>
-          <span><b>${totalOrdersCount}</b> Orders Today</span>
+      <div class="orders-header-actions" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button type="button" class="primary" id="btn-orders-take-order" style="padding:10px 18px;font-size:13px;border-radius:10px;font-weight:700;background:var(--coffee);">${icon('plus-circle')} Take Order for Table</button>
+        <div class="orders-quick-metrics">
+          <div class="metric-pill ${newTablesCount > 0 ? 'alert' : ''}">
+            <span class="metric-icon">${icon('bell-ring')}</span>
+            <span><b>${newTablesCount}</b> New Table ${newTablesCount === 1 ? 'Alert' : 'Alerts'}</span>
+          </div>
+          <div class="metric-pill active">
+            <span class="metric-icon">${icon('armchair')}</span>
+            <span><b>${totalActiveTables}</b> Active Dining</span>
+          </div>
+          <div class="metric-pill">
+            <span class="metric-icon">${icon('shield-check')}</span>
+            <span><b>${vacantTablesCount}</b> Ready / Vacant</span>
+          </div>
+          <div class="metric-pill">
+            <span class="metric-icon">${icon('receipt')}</span>
+            <span><b>${totalOrdersCount}</b> Orders Today</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1373,6 +1397,351 @@ function acknowledgeTableOrders(tableNum) {
 
 function ordersTable(data){
   return `<div style="overflow:auto"><table class="table"><thead><tr><th>Order</th><th>Table & time</th><th>Items</th><th>Total</th><th>Status</th><th>Update</th></tr></thead><tbody>${data.length?data.map(o=>`<tr><td><div class="cell-title">${esc(o.id)}</div><div class="cell-sub">${esc(o.date || 'Today')}</div></td><td><div class="table-badge">${esc(o.table)}</div><div class="cell-sub">${esc(o.time)}</div></td><td>${o.items.map(i=>`<div class="cell-sub">${i.qty}× ${esc(i.name)}</div>`).join('')}</td><td class="cell-title">${money(o.total)}</td><td><span class="status ${statusClass(o.status)}">${o.status}</span></td><td><select class="select order-status" data-order="${o.id}" style="height:34px"><option ${o.status==='New'?'selected':''}>New</option><option ${o.status==='Preparing'?'selected':''}>Preparing</option><option ${o.status==='Ready'?'selected':''}>Ready</option><option ${o.status==='Completed'?'selected':''}>Completed</option><option ${o.status==='Cancelled'?'selected':''}>Cancelled</option></select></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No orders match those filters.</div></td></tr>`}</tbody></table></div>`;
+}
+
+// ========================================================
+// CAFÉ PORTAL — TAKE ORDER / COUNTER POS SYSTEM
+// ========================================================
+function addStaffCartItem(menuId) {
+  const item = myMenu().find(m => m.id === menuId);
+  if (!item) return;
+  state.staffCart = state.staffCart || [];
+  const existing = state.staffCart.find(x => x.id === menuId);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    state.staffCart.push({ id: item.id, name: item.name, price: item.price, image: item.image, qty: 1, category: item.category, veg: item.veg });
+  }
+  saveSession();
+  render();
+  toast(`Added ${item.name} to Table ${state.staffTable || '01'} order`);
+}
+
+function changeStaffCartQty(menuId, change) {
+  state.staffCart = state.staffCart || [];
+  const existing = state.staffCart.find(x => x.id === menuId);
+  if (existing) {
+    existing.qty += change;
+    if (existing.qty <= 0) {
+      state.staffCart = state.staffCart.filter(x => x.id !== menuId);
+    }
+    saveSession();
+    render();
+  }
+}
+
+function removeStaffCartItem(menuId) {
+  state.staffCart = (state.staffCart || []).filter(x => x.id !== menuId);
+  saveSession();
+  render();
+}
+
+function clearStaffCart() {
+  if (state.staffCart && state.staffCart.length > 0) {
+    if (confirm('Clear current order draft?')) {
+      state.staffCart = [];
+      state.staffCustomerName = '';
+      state.staffCustomerNotes = '';
+      saveSession();
+      render();
+      toast('Order draft cleared');
+    }
+  }
+}
+
+async function placeStaffOrder() {
+  const cleanTable = String(state.staffTable || '01').trim().padStart(2, '0');
+  if (!cleanTable || cleanTable === '00') {
+    return toast('⚠️ Please select or enter a valid table number');
+  }
+  if (!state.staffCart || !state.staffCart.length) {
+    return toast('⚠️ Please add at least one menu item to the order');
+  }
+
+  const customerName = (state.staffCustomerName || '').trim() || `Guest (Table ${cleanTable})`;
+  const notes = (state.staffCustomerNotes || '').trim();
+
+  const items = state.staffCart.map(x => {
+    const m = myMenu().find(item => item.id === x.id);
+    return {
+      name: m ? m.name : x.name,
+      qty: x.qty,
+      price: m ? m.price : x.price,
+      isNew: true,
+      notes: notes || undefined
+    };
+  });
+
+  const subtotal = items.reduce((a, i) => a + i.qty * i.price, 0);
+  const tax = Math.round(subtotal * 0.05);
+  const total = subtotal + tax;
+  const id = `ORD-${Math.max(1000, ...db.orders.map(o => +o.id.split('-')[1] || 0)) + 1}`;
+
+  const o = {
+    id,
+    cafeId: cafe().id,
+    customerName: notes ? `${customerName} (${notes})` : customerName,
+    table: cleanTable,
+    qrVerified: true,
+    isStaffCreated: true,
+    items,
+    total,
+    status: 'New',
+    isNew: true,
+    time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+    date: 'Today',
+    timestamp: Date.now()
+  };
+
+  db.orders.unshift(o);
+  save(true);
+  playToingSound();
+
+  // Try pushing to /api/orders
+  try {
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...o,
+        cafeName: cafe().name,
+        subtotal,
+        tax,
+        createdAt: new Date().toLocaleString('en-IN')
+      })
+    }).catch(() => {});
+  } catch (error) {}
+
+  // Reset staff cart and customer details
+  state.staffCart = [];
+  state.staffCustomerName = '';
+  state.staffCustomerNotes = '';
+  state.staffSearchQuery = '';
+
+  // Expand table in Order Management board so staff sees it open immediately
+  state.expandedTables[cleanTable] = true;
+  state.page = 'orders';
+  render();
+
+  toast(`✨ Order #${o.id} placed for Table ${cleanTable} (${money(total)}) & sent to Order Management!`);
+}
+
+function posPage() {
+  const c = cafe();
+  const menu = myMenu();
+  const cats = ['All', ...categories()];
+  const currentTable = String(state.staffTable || '01').padStart(2, '0');
+  const staffCart = state.staffCart || [];
+  const activeCategory = state.staffCategory || 'All';
+  const searchQuery = (state.staffSearchQuery || '').toLowerCase().trim();
+
+  // Get table status lookup for all tables (01 to 15)
+  const groups = getCafeTableGroups();
+  const groupMap = new Map();
+  groups.forEach(g => groupMap.set(g.table, g));
+
+  const sampleTables = Array.from({ length: 15 }, (_, i) => String(i + 1).padStart(2, '0'));
+
+  // Calculate cart totals
+  const subtotal = staffCart.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const tax = Math.round(subtotal * 0.05);
+  const total = subtotal + tax;
+  const totalItemsCount = staffCart.reduce((sum, item) => sum + item.qty, 0);
+
+  // Filter menu items
+  const filteredMenu = menu.filter(m => {
+    const matchCat = activeCategory === 'All' || m.category === activeCategory;
+    const matchSearch = !searchQuery || (m.name + ' ' + m.category + ' ' + (m.description || '')).toLowerCase().includes(searchQuery);
+    return matchCat && matchSearch;
+  });
+
+  const currentTableGroup = groupMap.get(currentTable);
+  const isTableCurrentlyActive = currentTableGroup && !currentTableGroup.isVacant;
+
+  return `<div class="pos-screen-layout">
+    <div class="pos-main-column">
+      <!-- 1. Table & Guest Selector Section -->
+      <section class="panel pos-table-control-card">
+        <div class="pos-card-head">
+          <div>
+            <h2 class="panel-title">${icon('utensils')} 1. Select Dining Table & Customer</h2>
+            <p class="panel-sub">Choose table to associate with this order or add to an ongoing table bill</p>
+          </div>
+          <div class="pos-table-badge-preview">
+            <span class="tbl-chip-label">ORDERING FOR</span>
+            <strong class="tbl-chip-num">TABLE ${esc(currentTable)}</strong>
+          </div>
+        </div>
+
+        <div class="pos-table-selector-row">
+          <div class="pos-tables-chips-container">
+            ${sampleTables.map(t => {
+              const grp = groupMap.get(t);
+              const isOccupied = grp && !grp.isVacant;
+              const hasAlert = grp && grp.hasNew;
+              return `<button type="button" class="pos-tbl-chip ${t === currentTable ? 'active' : ''} ${isOccupied ? 'occupied' : 'vacant'}" data-staff-select-table="${t}">
+                <span class="chip-status-dot ${hasAlert ? 'pulse' : isOccupied ? 'occupied' : 'vacant'}"></span>
+                <span class="chip-name">T-${t}</span>
+                <small class="chip-meta">${isOccupied ? `${grp.orders.length} ord (${money(grp.total)})` : 'Vacant'}</small>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="pos-guest-details-grid">
+          <div class="field" style="margin-bottom:0;">
+            <label>${icon('user')} Customer / Guest Name (Optional)</label>
+            <input type="text" id="pos-customer-name" placeholder="e.g. Rahul Sen / Walk-in Guest" value="${esc(state.staffCustomerName || '')}" maxlength="80">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>${icon('clipboard-list')} Table Number (Manual / Custom)</label>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="pos-manual-table" placeholder="e.g. 04" value="${esc(currentTable)}" maxlength="6" style="max-width:120px;">
+              <button type="button" class="outline" id="pos-apply-manual-table" style="font-size:12px;padding:6px 12px;">Set Table</button>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0;grid-column:1 / -1;">
+            <label>${icon('pencil')} Kitchen / Special Notes (Optional)</label>
+            <input type="text" id="pos-customer-notes" placeholder="e.g. Less sugar, extra ice, serve pasta first" value="${esc(state.staffCustomerNotes || '')}" maxlength="120">
+          </div>
+        </div>
+
+        ${isTableCurrentlyActive ? `<div class="pos-active-table-notice">
+          ${icon('bell-ring')} <span>Table <b>${esc(currentTable)}</b> currently has <b>${currentTableGroup.orders.length} active ${currentTableGroup.orders.length === 1 ? 'batch' : 'batches'}</b> (Running Bill: <b>${money(currentTableGroup.total)}</b>). This new order will be added to Table ${esc(currentTable)} running tab as a new batch.</span>
+        </div>` : ''}
+      </section>
+
+      <!-- 2. Menu Options & Picker Section -->
+      <section class="panel pos-menu-section">
+        <div class="pos-menu-toolbar">
+          <div class="pos-category-tabs">
+            ${cats.map(cat => {
+              const count = cat === 'All' ? menu.length : menu.filter(m => m.category === cat).length;
+              return `<button type="button" class="pos-cat-btn ${activeCategory === cat ? 'active' : ''}" data-staff-cat="${esc(cat)}">
+                <span>${esc(cat)}</span>
+                <span class="cat-count-pill">${count}</span>
+              </button>`;
+            }).join('')}
+          </div>
+          <div class="search-wrap pos-search-wrap">
+            ${icon('search')}
+            <input type="text" class="search" id="pos-menu-search" placeholder="Search menu items..." value="${esc(state.staffSearchQuery || '')}">
+          </div>
+        </div>
+
+        <div class="pos-menu-grid">
+          ${filteredMenu.length ? filteredMenu.map(item => {
+            const inCart = staffCart.find(x => x.id === item.id);
+            return `<article class="pos-menu-item-card ${inCart ? 'in-cart' : ''}">
+              <div class="pos-item-media">
+                <img src="${item.image}" alt="${esc(item.name)}" loading="lazy">
+                <span class="pos-item-veg-tag ${item.veg ? 'veg' : 'nonveg'}">${item.veg ? '🟢 Veg' : '🔴 Non-veg'}</span>
+                ${inCart ? `<span class="pos-item-cart-qty-badge">${inCart.qty} in order</span>` : ''}
+              </div>
+              <div class="pos-item-body">
+                <div class="pos-item-header">
+                  <h4 class="pos-item-name">${esc(item.name)}</h4>
+                  <span class="pos-item-price">${money(item.price)}</span>
+                </div>
+                <div class="pos-item-category-tag">${esc(item.category)}</div>
+                <p class="pos-item-desc">${esc(item.description || '')}</p>
+                <div class="pos-item-actions">
+                  ${inCart ? `
+                    <div class="pos-item-stepper">
+                      <button type="button" class="pos-stepper-btn" data-staff-qty="${item.id}" data-change="-1">−</button>
+                      <b class="pos-stepper-val">${inCart.qty}</b>
+                      <button type="button" class="pos-stepper-btn" data-staff-qty="${item.id}" data-change="1">+</button>
+                    </div>
+                  ` : `
+                    <button type="button" class="primary pos-btn-add" data-staff-add="${item.id}">
+                      ${icon('plus')} Add to Order
+                    </button>
+                  `}
+                </div>
+              </div>
+            </article>`;
+          }).join('') : `<div class="panel empty" style="grid-column: 1 / -1; padding: 40px 20px; text-align: center;">
+            <div style="font-size:28px;margin-bottom:8px;">🔍</div>
+            <strong>No menu items match your filter.</strong>
+            <p class="panel-sub" style="margin-top:4px;">Try searching for a different item name or select another category.</p>
+          </div>`}
+        </div>
+      </section>
+    </div>
+
+    <!-- Right Side / Slip Column: Live Order Slip -->
+    <aside class="pos-slip-column">
+      <div class="panel pos-order-slip-card">
+        <header class="pos-slip-header">
+          <div class="pos-slip-header-title">
+            <div class="pos-slip-table-tag">TABLE ${esc(currentTable)}</div>
+            <div class="pos-slip-guest-info">
+              <strong>${esc(state.staffCustomerName ? state.staffCustomerName : `Walk-in Guest`)}</strong>
+              <small>${totalItemsCount} ${totalItemsCount === 1 ? 'item' : 'items'} selected</small>
+            </div>
+          </div>
+          ${staffCart.length > 0 ? `<button type="button" class="soft pos-btn-clear-cart" id="pos-btn-clear-order" title="Clear order draft">${icon('trash-2')}</button>` : ''}
+        </header>
+
+        <div class="pos-slip-body">
+          ${staffCart.length ? `
+            <div class="pos-slip-items-list">
+              ${staffCart.map(item => `
+                <div class="pos-slip-item-row">
+                  <img src="${item.image}" class="pos-slip-item-thumb" alt="${esc(item.name)}">
+                  <div class="pos-slip-item-info">
+                    <div class="pos-slip-item-name">${esc(item.name)}</div>
+                    <div class="pos-slip-item-unit">${money(item.price)} each</div>
+                    <div class="pos-slip-stepper">
+                      <button type="button" class="pos-slip-step-btn" data-staff-qty="${item.id}" data-change="-1">−</button>
+                      <span class="pos-slip-qty">${item.qty}</span>
+                      <button type="button" class="pos-slip-step-btn" data-staff-qty="${item.id}" data-change="1">+</button>
+                    </div>
+                  </div>
+                  <div class="pos-slip-item-right">
+                    <strong class="pos-slip-item-subtotal">${money(item.qty * item.price)}</strong>
+                    <button type="button" class="pos-slip-item-remove" data-staff-remove="${item.id}" title="Remove item">${icon('x')}</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <div class="pos-slip-empty-state">
+              <div class="pos-empty-icon">${icon('shopping-bag')}</div>
+              <strong>Order Slip is Empty</strong>
+              <p>Select items from the menu options on the left to build this table order.</p>
+            </div>
+          `}
+        </div>
+
+        <footer class="pos-slip-footer">
+          <div class="pos-bill-summary-rows">
+            <div class="pos-bill-row">
+              <span>Items Subtotal (${totalItemsCount} items)</span>
+              <b>${money(subtotal)}</b>
+            </div>
+            <div class="pos-bill-row">
+              <span>Taxes (5% GST)</span>
+              <b>${money(tax)}</b>
+            </div>
+            <div class="pos-bill-row total">
+              <span>Grand Total</span>
+              <strong class="pos-grand-total">${money(total)}</strong>
+            </div>
+          </div>
+
+          <div class="pos-slip-actions-group">
+            <button type="button" class="primary pos-btn-dispatch-order" id="btn-staff-submit-order" ${staffCart.length === 0 ? 'disabled' : ''}>
+              ${icon('clipboard-check')} <span>Place Order for Table ${esc(currentTable)} (${money(total)})</span>
+            </button>
+            <div class="pos-dispatch-hint">
+              ${icon('shield-check')} <span>Directly dispatches to Order Management table board with live kitchen tracking.</span>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </aside>
+  </div>`;
 }
 
 function menuPage(){
@@ -1906,6 +2275,110 @@ function bind(){
     state.view = 'customer';
     state.cart = [];
     render();
+  });
+
+  // Topbar and Orders page Take Order triggers
+  $('#header-take-order')?.addEventListener('click', () => {
+    state.page = 'pos';
+    render();
+  });
+
+  $('#btn-orders-take-order')?.addEventListener('click', () => {
+    state.page = 'pos';
+    render();
+  });
+
+  $$('[data-pos-table]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      state.staffTable = btn.dataset.posTable;
+      state.page = 'pos';
+      render();
+    };
+  });
+
+  // POS Screen Interactive Event Handlers
+  $$('[data-staff-select-table]').forEach(btn => {
+    btn.onclick = () => {
+      state.staffTable = btn.dataset.staffSelectTable;
+      saveSession();
+      render();
+    };
+  });
+
+  $('#pos-apply-manual-table')?.addEventListener('click', () => {
+    const val = ($('#pos-manual-table')?.value || '').trim();
+    if (val) {
+      let clean = val;
+      if (/^\d+$/.test(val)) clean = val.padStart(2, '0');
+      state.staffTable = clean;
+      saveSession();
+      render();
+      toast(`Ordering table set to Table ${clean}`);
+    }
+  });
+
+  $('#pos-manual-table')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = (e.target.value || '').trim();
+      if (val) {
+        let clean = val;
+        if (/^\d+$/.test(val)) clean = val.padStart(2, '0');
+        state.staffTable = clean;
+        saveSession();
+        render();
+        toast(`Ordering table set to Table ${clean}`);
+      }
+    }
+  });
+
+  $('#pos-customer-name')?.addEventListener('input', (e) => {
+    state.staffCustomerName = e.target.value;
+    saveSession();
+  });
+
+  $('#pos-customer-notes')?.addEventListener('input', (e) => {
+    state.staffCustomerNotes = e.target.value;
+    saveSession();
+  });
+
+  $$('[data-staff-cat]').forEach(btn => {
+    btn.onclick = () => {
+      state.staffCategory = btn.dataset.staffCat;
+      render();
+    };
+  });
+
+  $('#pos-menu-search')?.addEventListener('input', (e) => {
+    state.staffSearchQuery = e.target.value;
+    render();
+  });
+
+  $$('[data-staff-add]').forEach(btn => {
+    btn.onclick = () => {
+      addStaffCartItem(btn.dataset.staffAdd);
+    };
+  });
+
+  $$('[data-staff-qty]').forEach(btn => {
+    btn.onclick = () => {
+      changeStaffCartQty(btn.dataset.staffQty, parseInt(btn.dataset.change, 10));
+    };
+  });
+
+  $$('[data-staff-remove]').forEach(btn => {
+    btn.onclick = () => {
+      removeStaffCartItem(btn.dataset.staffRemove);
+    };
+  });
+
+  $('#pos-btn-clear-order')?.addEventListener('click', () => {
+    clearStaffCart();
+  });
+
+  $('#btn-staff-submit-order')?.addEventListener('click', () => {
+    placeStaffOrder();
   });
 }
 
