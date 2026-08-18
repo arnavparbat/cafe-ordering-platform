@@ -336,6 +336,53 @@ function numberToWords(num) {
 }
 
 // ========================================================
+// GUEST NAME RESOLUTION & BILL UTILITIES
+// ========================================================
+function isDefaultGuestName(name) {
+  if (!name || typeof name !== 'string') return true;
+  const s = name.trim().toLowerCase();
+  if (!s) return true;
+  if (s === 'guest' || s === 'walk-in' || s === 'walk-in guest' || s === 'no active guest' || s === 'no guest' || s === 'anonymous') return true;
+  if (/^guest\s*\(/i.test(s)) return true; // Matches "Guest (Table 01)", "Guest (Walk-in)", etc.
+  if (/^table\s*\d+/i.test(s)) return true; // Matches "Table 01", etc.
+  return false;
+}
+
+function cleanGuestName(name, tableNum = '') {
+  if (!name || typeof name !== 'string') {
+    return tableNum ? `Guest (Table ${String(tableNum).padStart(2, '0')})` : 'Walk-in Guest';
+  }
+  const s = name.trim();
+  if (isDefaultGuestName(s)) {
+    return tableNum ? `Guest (Table ${String(tableNum).padStart(2, '0')})` : 'Walk-in Guest';
+  }
+  return s;
+}
+
+function getActiveTableGuestName(tableNum, cafeId) {
+  const cId = cafeId || (typeof cafe === 'function' ? cafe()?.id : db.cafes?.[0]?.id) || db.cafes?.[0]?.id;
+  const cleanTable = String(tableNum || '').trim().padStart(2, '0');
+  const tableResets = db.tableResets || {};
+  const resetTime = tableResets[`${cId}_${cleanTable}`] || 0;
+  const activeOrders = (db.orders || []).filter(o => 
+    o.cafeId === cId && 
+    String(o.table || '').padStart(2, '0') === cleanTable &&
+    (o.timestamp || 0) > resetTime
+  );
+  const realOrder = activeOrders.find(o => o.customerName && !isDefaultGuestName(o.customerName));
+  if (realOrder) return realOrder.customerName.trim();
+  if (typeof state !== 'undefined' && state) {
+    if (String(state.table || '').padStart(2, '0') === cleanTable && state.customerName && !isDefaultGuestName(state.customerName)) {
+      return state.customerName.trim();
+    }
+    if (String(state.staffTable || '').padStart(2, '0') === cleanTable && state.staffCustomerName && !isDefaultGuestName(state.staffCustomerName)) {
+      return state.staffCustomerName.trim();
+    }
+  }
+  return '';
+}
+
+// ========================================================
 // PRINTABLE BILL & TAX INVOICE GENERATOR
 // ========================================================
 function getBillData(type, targetId) {
@@ -365,7 +412,23 @@ function getBillData(type, targetId) {
     const ordersToBill = activeOrders.length > 0 ? activeOrders : db.orders.filter(o => o.cafeId === c.id && String(o.table).padStart(2, '0') === tableNum).slice(0, 3);
     
     if (ordersToBill.length > 0) {
-      guestName = ordersToBill[0].customerName || `Guest (Table ${tableNum})`;
+      // Find the real customer name from any batch placed during this session
+      const realNamedOrder = ordersToBill.find(ord => ord.customerName && !isDefaultGuestName(ord.customerName));
+      if (realNamedOrder) {
+        guestName = realNamedOrder.customerName;
+      } else {
+        const activeGuest = getActiveTableGuestName(tableNum, c.id);
+        if (activeGuest) {
+          guestName = activeGuest;
+        } else if (state.table === tableNum && state.customerName && !isDefaultGuestName(state.customerName)) {
+          guestName = state.customerName;
+        } else if (state.staffTable === tableNum && state.staffCustomerName && !isDefaultGuestName(state.staffCustomerName)) {
+          guestName = state.staffCustomerName;
+        } else {
+          guestName = ordersToBill[0].customerName || `Guest (Table ${tableNum})`;
+        }
+      }
+
       dateTimeStr = ordersToBill[0].date && ordersToBill[0].time ? `${ordersToBill[0].date} · ${ordersToBill[0].time}` : dateTimeStr;
       billNumber = `BILL-T${tableNum}-${ordersToBill[0].id.replace('ORD-', '')}`;
       ordersToBill.forEach(ord => {
@@ -374,17 +437,42 @@ function getBillData(type, targetId) {
           items.push({ name: itm.name, qty: itm.qty || 1, price: itm.price });
         });
       });
+    } else {
+      const activeGuest = getActiveTableGuestName(tableNum, c.id);
+      guestName = activeGuest || (state.table === tableNum && state.customerName ? state.customerName : `Guest (Table ${tableNum})`);
     }
   } else if (type === 'order') {
     const o = db.orders.find(ord => ord.id === targetId) || (state.confirmed && state.confirmed.id === targetId ? state.confirmed : null);
     if (o) {
       tableNum = String(o.table || '01').padStart(2, '0');
-      guestName = o.customerName || `Guest (Table ${tableNum})`;
+      if (o.customerName && !isDefaultGuestName(o.customerName)) {
+        guestName = o.customerName;
+      } else {
+        // Look for guest name from the table's active session or siblings
+        const activeGuest = getActiveTableGuestName(tableNum, c.id);
+        if (activeGuest) {
+          guestName = activeGuest;
+        } else if (state.table === tableNum && state.customerName && !isDefaultGuestName(state.customerName)) {
+          guestName = state.customerName;
+        } else {
+          guestName = o.customerName || `Guest (Table ${tableNum})`;
+        }
+      }
       billNumber = `INV-${o.id}`;
       dateTimeStr = `${o.date || 'Today'} · ${o.time || ''}`;
       orderBatches = [o.id];
       items = (o.items || []).map(i => ({ name: i.name, qty: i.qty || 1, price: i.price }));
     }
+  } else if (type === 'pos') {
+    const cleanTable = String(state.staffTable || '01').trim().padStart(2, '0');
+    tableNum = cleanTable;
+    const inputName = ($('#pos-customer-name')?.value || state.staffCustomerName || '').trim();
+    const existingGuest = getActiveTableGuestName(cleanTable, c.id);
+    guestName = inputName || existingGuest || (state.staffCustomerName && !isDefaultGuestName(state.staffCustomerName) ? state.staffCustomerName : `Guest (Table ${cleanTable})`);
+    billNumber = `DRAFT-T${tableNum}-${Date.now().toString().slice(-4)}`;
+    dateTimeStr = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    orderBatches = ['DRAFT'];
+    items = (state.staffCart || []).map(i => ({ name: i.name, qty: i.qty || 1, price: i.price }));
   }
 
   // Deduplicate and aggregate identical items
@@ -1568,12 +1656,21 @@ function getCafeTableGroups() {
       else if (hasReady) status = 'Ready';
       else if (activeOrdersCount > 0) status = 'Active';
 
+      const realNamedOrder = activeOrders.find(o => o.customerName && !isDefaultGuestName(o.customerName));
+      const resolvedCustomerName = realNamedOrder 
+        ? realNamedOrder.customerName 
+        : (activeOrders[0]?.customerName && !isDefaultGuestName(activeOrders[0].customerName)
+            ? activeOrders[0].customerName
+            : (state && String(state.table).padStart(2, '0') === tbl && state.customerName && !isDefaultGuestName(state.customerName)
+                ? state.customerName
+                : (activeOrders[0]?.customerName || `Guest (Table ${tbl})`)));
+
       groups.push({
         table: tbl,
         isVacant: false,
         orders: activeOrders,
         pastOrdersCount: pastOrders.length,
-        customerName: activeOrders[0]?.customerName || `Guest (Table ${tbl})`,
+        customerName: resolvedCustomerName,
         hasNew,
         totalItems,
         total: breakdown.total,
@@ -1754,12 +1851,12 @@ function tableSectionView(g, isExpanded) {
           </div>
         </div>
         <div class="bill-actions-right">
-          <button type="button" class="primary btn-print-table-bill" data-print-table="${esc(g.table)}" style="font-size:12px;padding:9px 16px;border-radius:8px;font-weight:700;background:var(--coffee-dark);color:#fff;display:inline-flex;align-items:center;gap:6px;" title="Print official dining bill receipt">
+          <button type="button" class="outline btn-print-table-bill" data-print-table="${esc(g.table)}" style="font-size:12px;padding:9px 14px;border-radius:8px;font-weight:700;display:inline-flex;align-items:center;gap:6px;" title="Print official dining bill receipt">
             ${icon('printer')} Print Bill
           </button>
           <button type="button" class="outline btn-add-items-table" data-pos-table="${esc(g.table)}" style="font-size:12px;padding:9px 14px;border-radius:8px;font-weight:700;">${icon('plus-circle')} + Add Items for Table ${esc(g.table)}</button>
           ${isNewTable ? `<button type="button" class="outline btn-ack-table" data-ack-table="${g.table}">${icon('check')} Acknowledge & Start Preparing</button>` : ''}
-          <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Customer has paid offline. Stop this guest's bill and reset table for next customer.">${icon('circle-check')} Complete & Restart Table (Bill Paid Offline)</button>
+          <button type="button" class="primary btn-complete-table" data-complete-table="${g.table}" title="Generate/print official bill and reset table for the next guest.">${icon('printer')} Complete & Restart Table (Print Bill)</button>
         </div>
       </div>
     </div>` : ''}
@@ -1864,12 +1961,18 @@ function restartTableOrder(tableNum) {
   const cId = cafe().id;
   const currentResetTime = (db.tableResets && db.tableResets[`${cId}_${cleanTbl}`]) || 0;
   
-  // Find all active orders for this table session
+  // 1. Gather all active orders for this dining table session
   const tableOrders = db.orders.filter(o => 
     o.cafeId === cId && 
     String(o.table).padStart(2, '0') === cleanTbl &&
     (o.timestamp || 0) > currentResetTime
   );
+
+  // 2. ALWAYS retrieve and print the official dining bill receipt BEFORE resetting the table
+  const billData = getBillData('table', cleanTbl);
+  if (billData && billData.items && billData.items.length > 0) {
+    printBillWindow(billData);
+  }
   
   const now = Date.now();
   tableOrders.forEach(o => {
@@ -1890,11 +1993,18 @@ function restartTableOrder(tableNum) {
     state.placedOrderIds = [];
     state.confirmed = null;
     state.cart = [];
+    state.customerName = '';
   }
 
+  if (String(state.staffTable || '').padStart(2, '0') === cleanTbl) {
+    state.staffCustomerName = '';
+    state.staffCustomerNotes = '';
+  }
+
+  saveSession();
   save();
   playNotificationSound();
-  toast(`🎉 Table ${cleanTbl} bill settled offline & session closed! Ready for next guest.`);
+  toast(`🖨️ Bill printed & Table ${cleanTbl} successfully restarted for next guest!`);
   render();
 }
 
@@ -1952,7 +2062,19 @@ function ordersTable(data){
 // ========================================================
 // CAFÉ PORTAL — TAKE ORDER / COUNTER POS SYSTEM
 // ========================================================
+function syncStaffFormState() {
+  const domName = $('#pos-customer-name')?.value;
+  if (domName !== undefined && domName !== null) {
+    state.staffCustomerName = domName.trim();
+  }
+  const domNotes = $('#pos-customer-notes')?.value;
+  if (domNotes !== undefined && domNotes !== null) {
+    state.staffCustomerNotes = domNotes.trim();
+  }
+}
+
 function addStaffCartItem(menuId) {
+  syncStaffFormState();
   const item = myMenu().find(m => m.id === menuId);
   if (!item) return;
   state.staffCart = state.staffCart || [];
@@ -1968,6 +2090,7 @@ function addStaffCartItem(menuId) {
 }
 
 function changeStaffCartQty(menuId, change) {
+  syncStaffFormState();
   state.staffCart = state.staffCart || [];
   const existing = state.staffCart.find(x => x.id === menuId);
   if (existing) {
@@ -1981,6 +2104,7 @@ function changeStaffCartQty(menuId, change) {
 }
 
 function removeStaffCartItem(menuId) {
+  syncStaffFormState();
   state.staffCart = (state.staffCart || []).filter(x => x.id !== menuId);
   saveSession();
   render();
@@ -2008,8 +2132,16 @@ async function placeStaffOrder() {
     return toast('⚠️ Please add at least one menu item to the order');
   }
 
-  const customerName = (state.staffCustomerName || '').trim() || `Guest (Table ${cleanTable})`;
-  const notes = (state.staffCustomerNotes || '').trim();
+  const domName = ($('#pos-customer-name')?.value || '').trim();
+  const sessionName = (state.staffCustomerName || '').trim();
+  const existingTableGuest = getActiveTableGuestName(cleanTable, cafe().id);
+  
+  // Prioritize directly typed guest name, then session name, then existing table session guest, then default
+  const customerName = domName || sessionName || existingTableGuest || `Guest (Table ${cleanTable})`;
+  const notes = ($('#pos-customer-notes')?.value || state.staffCustomerNotes || '').trim();
+
+  state.staffCustomerName = customerName;
+  saveSession();
 
   const items = state.staffCart.map(x => {
     const m = myMenu().find(item => item.id === x.id);
@@ -2028,7 +2160,8 @@ async function placeStaffOrder() {
   const o = {
     id,
     cafeId: cafe().id,
-    customerName: notes ? `${customerName} (${notes})` : customerName,
+    customerName: customerName,
+    notes: notes || undefined,
     table: cleanTable,
     qrVerified: true,
     isStaffCreated: true,
@@ -2063,9 +2196,8 @@ async function placeStaffOrder() {
     }).catch(() => {});
   } catch (error) {}
 
-  // Reset staff cart and customer details
+  // Reset staff cart and draft notes (keep staffCustomerName set for this table session)
   state.staffCart = [];
-  state.staffCustomerName = '';
   state.staffCustomerNotes = '';
   state.staffSearchQuery = '';
 
@@ -2074,7 +2206,7 @@ async function placeStaffOrder() {
   state.page = 'orders';
   render();
 
-  toast(`✨ Order #${o.id} placed for Table ${cleanTable} (${money(breakdown.total)}) & sent to Order Management!`);
+  toast(`✨ Order #${o.id} placed for ${customerName} (Table ${cleanTable}) & sent to Order Management!`);
 }
 
 function posPage() {
@@ -2140,7 +2272,7 @@ function posPage() {
         <div class="pos-guest-details-grid">
           <div class="field" style="margin-bottom:0;">
             <label>${icon('user')} Customer / Guest Name (Optional)</label>
-            <input type="text" id="pos-customer-name" placeholder="e.g. Rahul Sen / Walk-in Guest" value="${esc(state.staffCustomerName || '')}" maxlength="80">
+            <input type="text" id="pos-customer-name" placeholder="e.g. Rahul Sen / Walk-in Guest" value="${esc(state.staffCustomerName !== undefined && state.staffCustomerName !== '' ? state.staffCustomerName : (getActiveTableGuestName(currentTable, c.id) || ''))}" maxlength="80">
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>${icon('clipboard-list')} Table Number (Manual / Custom)</label>
@@ -2225,7 +2357,7 @@ function posPage() {
           <div class="pos-slip-header-title">
             <div class="pos-slip-table-tag">TABLE ${esc(currentTable)}</div>
             <div class="pos-slip-guest-info">
-              <strong>${esc(state.staffCustomerName ? state.staffCustomerName : `Walk-in Guest`)}</strong>
+              <strong>${esc((state.staffCustomerName !== undefined && state.staffCustomerName !== '' ? state.staffCustomerName : (getActiveTableGuestName(currentTable, c.id) || '')) || `Walk-in Guest`)}</strong>
               <small>${totalItemsCount} ${totalItemsCount === 1 ? 'item' : 'items'} selected</small>
             </div>
           </div>
@@ -2428,8 +2560,9 @@ function customerView(){
 function cartDrawer(){
   let items = state.cart.map(x=>({...myMenu().find(m=>m.id===x.id),qty:x.qty}));
   let breakdown = calculateOrderBreakdown(items, cafe());
+  const currentGuest = state.customerName || (state.table ? getActiveTableGuestName(state.table, cafe().id) : '') || '';
 
-  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary"><div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Standee</small></div></div><div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(state.customerName||'')}"></div><div class="sum-row"><span>Subtotal</span><span>${money(breakdown.subtotal)}</span></div>${breakdown.charges.map(ch => `<div class="sum-row"><span>${esc(ch.name)}</span><span>${money(ch.amount)}</span></div>`).join('')}<div class="sum-row total"><span>Grand total</span><span>${money(breakdown.total)}</span></div><button class="primary place-order" id="place-order">Place order ${icon('arrow-right')}</button></div>`:''}</aside>`;
+  return `<div class="drawer-backdrop ${state.cartOpen?'open':''}" id="cart-backdrop"></div><aside class="cart-drawer ${state.cartOpen?'open':''}"><div class="drawer-head"><h2>Your order</h2><button class="icon-btn" id="cart-close">${icon('x')}</button></div><div class="cart-items">${items.length?items.map(x=>`<div class="cart-item"><img src="${x.image}"><div><strong>${esc(x.name)}</strong><div class="cell-sub">${money(x.price)}</div><div class="qty"><button data-qty="${x.id}" data-change="-1">−</button><b>${x.qty}</b><button data-qty="${x.id}" data-change="1">+</button></div></div><button class="remove" data-remove="${x.id}">Remove</button></div>`).join(''):`<div class="empty">Your cart is waiting for something delicious.</div>`}</div>${items.length?`<div class="cart-summary"><div class="table-lock-box"><div class="table-lock-header"><span>Dining Table</span><span class="table-verified-status">${icon('shield-check')} QR Verified</span></div><div class="table-display-value"><span>Table ${esc(state.table)}</span><small style="font-size:11px;font-weight:600;color:var(--muted)">🔒 Locked to Standee</small></div></div><div class="field table-input"><label>Your name</label><input id="customer-name" maxlength="80" required placeholder="e.g. Ananya Sharma" value="${esc(currentGuest)}"></div><div class="sum-row"><span>Subtotal</span><span>${money(breakdown.subtotal)}</span></div>${breakdown.charges.map(ch => `<div class="sum-row"><span>${esc(ch.name)}</span><span>${money(ch.amount)}</span></div>`).join('')}<div class="sum-row total"><span>Grand total</span><span>${money(breakdown.total)}</span></div><button class="primary place-order" id="place-order">Place order ${icon('arrow-right')}</button></div>`:''}</aside>`;
 }
 
 function confirmationView(){
@@ -2857,10 +2990,13 @@ function bind(){
   $('#cart-close')?.addEventListener('click', () => { state.cartOpen = false; render(); });
   $('#cart-backdrop')?.addEventListener('click', () => { state.cartOpen = false; render(); });
   
-  $('#customer-name')?.addEventListener('input', e => {
+  const handleCustomerNameChange = (e) => {
     state.customerName = e.target.value;
     saveSession();
-  });
+  };
+  $('#customer-name')?.addEventListener('input', handleCustomerNameChange);
+  $('#customer-name')?.addEventListener('change', handleCustomerNameChange);
+  $('#customer-name')?.addEventListener('blur', handleCustomerNameChange);
 
   $$('[data-qty]').forEach(b => b.onclick = () => {
     let x = state.cart.find(x => x.id === b.dataset.qty);
@@ -2939,10 +3075,21 @@ function bind(){
     render();
   });
 
+  const handleSelectStaffTable = (rawTable) => {
+    let clean = String(rawTable || '01').trim();
+    if (/^\d+$/.test(clean)) clean = clean.padStart(2, '0');
+    state.staffTable = clean;
+    const activeGuest = getActiveTableGuestName(clean, cafe().id);
+    state.staffCustomerName = activeGuest || '';
+    state.staffCustomerNotes = '';
+    saveSession();
+    render();
+  };
+
   $$('[data-pos-table]').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
-      state.staffTable = btn.dataset.posTable;
+      handleSelectStaffTable(btn.dataset.posTable);
       state.page = 'pos';
       render();
     };
@@ -2951,21 +3098,15 @@ function bind(){
   // POS Screen Interactive Event Handlers
   $$('[data-staff-select-table]').forEach(btn => {
     btn.onclick = () => {
-      state.staffTable = btn.dataset.staffSelectTable;
-      saveSession();
-      render();
+      handleSelectStaffTable(btn.dataset.staffSelectTable);
     };
   });
 
   $('#pos-apply-manual-table')?.addEventListener('click', () => {
     const val = ($('#pos-manual-table')?.value || '').trim();
     if (val) {
-      let clean = val;
-      if (/^\d+$/.test(val)) clean = val.padStart(2, '0');
-      state.staffTable = clean;
-      saveSession();
-      render();
-      toast(`Ordering table set to Table ${clean}`);
+      handleSelectStaffTable(val);
+      toast(`Ordering table set to Table ${state.staffTable}`);
     }
   });
 
@@ -2974,25 +3115,27 @@ function bind(){
       e.preventDefault();
       const val = (e.target.value || '').trim();
       if (val) {
-        let clean = val;
-        if (/^\d+$/.test(val)) clean = val.padStart(2, '0');
-        state.staffTable = clean;
-        saveSession();
-        render();
-        toast(`Ordering table set to Table ${clean}`);
+        handleSelectStaffTable(val);
+        toast(`Ordering table set to Table ${state.staffTable}`);
       }
     }
   });
 
-  $('#pos-customer-name')?.addEventListener('input', (e) => {
+  const handlePosCustomerNameChange = (e) => {
     state.staffCustomerName = e.target.value;
     saveSession();
-  });
+  };
+  $('#pos-customer-name')?.addEventListener('input', handlePosCustomerNameChange);
+  $('#pos-customer-name')?.addEventListener('change', handlePosCustomerNameChange);
+  $('#pos-customer-name')?.addEventListener('blur', handlePosCustomerNameChange);
 
-  $('#pos-customer-notes')?.addEventListener('input', (e) => {
+  const handlePosNotesChange = (e) => {
     state.staffCustomerNotes = e.target.value;
     saveSession();
-  });
+  };
+  $('#pos-customer-notes')?.addEventListener('input', handlePosNotesChange);
+  $('#pos-customer-notes')?.addEventListener('change', handlePosNotesChange);
+  $('#pos-customer-notes')?.addEventListener('blur', handlePosNotesChange);
 
   $$('[data-staff-cat]').forEach(btn => {
     btn.onclick = () => {
@@ -3041,11 +3184,14 @@ function filterMenu(){
 }
 
 function filterOrders(){
-  let q = ($('#order-search')?.value || '').toLowerCase();
+  let q = ($('#order-search')?.value || '').toLowerCase().trim();
   let s = $('#status-filter')?.value || 'All orders';
   let el = $('#orders-table');
   let countLabel = $('#order-count-label');
-  let filtered = myOrders().filter(o => (o.id + o.table).toLowerCase().includes(q) && (s === 'All orders' || o.status === s));
+  let filtered = myOrders().filter(o => {
+    const text = (o.id + ' table ' + o.table + ' ' + (o.customerName || '') + ' ' + (o.items || []).map(i => i.name).join(' ')).toLowerCase();
+    return (!q || text.includes(q)) && (s === 'All orders' || o.status === s);
+  });
   if(el){
     el.innerHTML = ordersTable(filtered);
     $$('.order-status', el).forEach(sel => sel.onchange = () => {
@@ -3056,6 +3202,14 @@ function filterOrders(){
         toast(`${o.id} is now ${o.status}`);
         filterOrders();
       }
+    });
+    $$('.btn-print-order-bill', el).forEach(b => {
+      b.onclick = (e) => {
+        e.stopPropagation();
+        const ordId = b.dataset.printOrder;
+        const billData = getBillData('order', ordId);
+        printBillWindow(billData);
+      };
     });
   }
   if(countLabel){
@@ -3472,8 +3626,11 @@ async function placeOrder(){
     return;
   }
   let table = state.table;
-  let customerName = $('#customer-name')?.value.trim();
+  let customerName = ($('#customer-name')?.value || state.customerName || (state.table ? getActiveTableGuestName(state.table, cafe().id) : '') || '').trim();
   if(!customerName) return toast('Please enter your name');
+  state.customerName = customerName;
+  saveSession();
+
   let items = state.cart.map(x => {
     let m = myMenu().find(m => m.id === x.id);
     return { name: m.name, qty: x.qty, price: m.price, isNew: true };
