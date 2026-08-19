@@ -855,7 +855,12 @@ const defaultState = {
   staffCustomerName: '',
   staffCustomerNotes: '',
   staffCategory: 'All',
-  staffSearchQuery: ''
+  staffSearchQuery: '',
+  // Admin & Menu Filters
+  cafeSearchQuery: '',
+  cafeStatusFilter: 'All statuses',
+  menuSearchQuery: '',
+  menuCategoryFilter: 'All categories'
 };
 
 function loadSession(){
@@ -1491,6 +1496,30 @@ function render(){
   const app = $('#app');
   if(!app) return;
 
+  // Capture active element focus & cursor selection position before DOM update
+  const activeEl = document.activeElement;
+  let activeId = (activeEl && activeEl !== document.body) ? activeEl.id : null;
+  let activeName = (!activeId && activeEl && activeEl.name) ? activeEl.name : null;
+  let activeSelector = null;
+  let selStart = null;
+  let selEnd = null;
+
+  if (activeEl && activeEl !== document.body) {
+    if (!activeId && !activeName && activeEl.className) {
+      const tag = activeEl.tagName.toLowerCase();
+      const firstClass = (activeEl.classList && activeEl.classList[0]) ? activeEl.classList[0] : '';
+      if (firstClass) {
+        activeSelector = `${tag}.${firstClass}`;
+      }
+    }
+    if ('selectionStart' in activeEl) {
+      try {
+        selStart = activeEl.selectionStart;
+        selEnd = activeEl.selectionEnd;
+      } catch (_) {}
+    }
+  }
+
   if (state.view === 'login') {
     stopLiveCameraScanner();
     app.innerHTML = loginView();
@@ -1516,6 +1545,29 @@ function render(){
     }
   }
   bind();
+
+  // Restore focus and cursor selection position after re-rendering
+  if (activeId || activeName || activeSelector) {
+    let target = null;
+    if (activeId) {
+      target = document.getElementById(activeId);
+    }
+    if (!target && activeName) {
+      const safeName = activeName.replace(/"/g, '\\"');
+      target = document.querySelector(`[name="${safeName}"]`);
+    }
+    if (!target && activeSelector) {
+      target = document.querySelector(activeSelector);
+    }
+    if (target && typeof target.focus === 'function') {
+      target.focus();
+      if (selStart !== null && selEnd !== null && typeof target.setSelectionRange === 'function') {
+        try {
+          target.setSelectionRange(selStart, selEnd);
+        } catch (_) {}
+      }
+    }
+  }
 }
 
 function loginView(){
@@ -1656,7 +1708,15 @@ function orderRow(o){
 }
 
 function cafesPage(){
-  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes"></div><select class="select"><option>All statuses</option><option>Active</option><option>Inactive</option></select></div><span class="panel-sub">${db.cafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>Charges & Taxes</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${db.cafes.map(c=>{
+  let q = (state.cafeSearchQuery || '').toLowerCase().trim();
+  let status = state.cafeStatusFilter || 'All statuses';
+  let filteredCafes = db.cafes.filter(c => {
+    const text = (c.name + ' ' + c.id + ' ' + (c.username || '') + ' ' + (c.address || '')).toLowerCase();
+    const matchQ = !q || text.includes(q);
+    const matchStatus = status === 'All statuses' || c.status === status;
+    return matchQ && matchStatus;
+  });
+  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes" value="${esc(state.cafeSearchQuery || '')}"></div><select class="select" id="cafe-status-filter"><option ${status==='All statuses'?'selected':''}>All statuses</option><option ${status==='Active'?'selected':''}>Active</option><option ${status==='Inactive'?'selected':''}>Inactive</option></select></div><span class="panel-sub">${filteredCafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>Charges & Taxes</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${filteredCafes.map(c=>{
     const gstRate = c.gstRate !== undefined ? Number(c.gstRate) : 5;
     const gstEnabled = c.gstEnabled !== undefined ? !!c.gstEnabled : true;
     const scRate = c.serviceChargeRate !== undefined ? Number(c.serviceChargeRate) : 5;
@@ -2086,9 +2146,15 @@ function ordersPage(){
     if (activeFilter === 'active' && g.isVacant) return false;
     if (activeFilter === 'vacant' && !g.isVacant) return false;
     if (searchQuery) {
-      const matchTable = `table ${g.table}`.includes(searchQuery) || g.table.includes(searchQuery);
+      const rawTable = String(g.table || '').toLowerCase();
+      const numTable = String(parseInt(rawTable, 10) || '');
+      const matchTable = rawTable.includes(searchQuery) ||
+        `table ${rawTable}`.includes(searchQuery) ||
+        (numTable && `table ${numTable}`.includes(searchQuery)) ||
+        `t-${rawTable}`.includes(searchQuery) ||
+        (numTable && `t${numTable}`.includes(searchQuery));
       const matchGuest = (g.customerName || '').toLowerCase().includes(searchQuery);
-      const matchOrder = g.orders.some(o => o.id.toLowerCase().includes(searchQuery) || (o.items || []).some(i => i.name.toLowerCase().includes(searchQuery)));
+      const matchOrder = g.orders.some(o => (o.id || '').toLowerCase().includes(searchQuery) || (o.items || []).some(i => (i.name || '').toLowerCase().includes(searchQuery)));
       if (!matchTable && !matchGuest && !matchOrder) return false;
     }
     return true;
@@ -2100,7 +2166,9 @@ function ordersPage(){
     if (activeFilter === 'active' && !['New', 'Preparing', 'Processing', 'Ready'].includes(o.status)) return false;
     if (activeFilter === 'vacant') return false;
     if (searchQuery) {
-      const text = `${o.id} table ${o.table} ${o.customerName || ''} ${(o.items || []).map(i => i.name).join(' ')}`.toLowerCase();
+      const rawTable = String(o.table || '').toLowerCase();
+      const numTable = String(parseInt(rawTable, 10) || '');
+      const text = `${o.id || ''} table ${rawTable} ${numTable ? `table ${numTable} t${numTable}` : ''} ${o.customerName || ''} ${(o.items || []).map(i => i.name).join(' ')}`.toLowerCase();
       if (!text.includes(searchQuery)) return false;
     }
     return true;
@@ -2648,7 +2716,14 @@ function posPage() {
 
 function menuPage(){
   let menu = myMenu();
-  return `<section class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="menu-search" placeholder="Search menu"></div><select class="select" id="menu-filter"><option>All categories</option>${categories().map(c=>`<option>${esc(c)}</option>`).join('')}</select></div><span class="panel-sub">${menu.filter(x=>x.available).length} items live</span></section><section class="grid menu-grid" id="menu-grid">${menuCards(menu)}</section>`;
+  let q = (state.menuSearchQuery || '').toLowerCase().trim();
+  let cat = state.menuCategoryFilter || 'All categories';
+  let filtered = menu.filter(m => {
+    const matchSearch = !q || (m.name + ' ' + m.category + ' ' + (m.description || '')).toLowerCase().includes(q);
+    const matchCat = cat === 'All categories' || m.category === cat;
+    return matchSearch && matchCat;
+  });
+  return `<section class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="menu-search" placeholder="Search menu" value="${esc(state.menuSearchQuery || '')}"></div><select class="select" id="menu-filter"><option ${cat==='All categories'?'selected':''}>All categories</option>${categories().map(c=>`<option ${cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div><span class="panel-sub">${filtered.filter(x=>x.available).length} items live</span></section><section class="grid menu-grid" id="menu-grid">${menuCards(filtered)}</section>`;
 }
 
 function menuCards(items){
@@ -2970,10 +3045,22 @@ function bind(){
     toast(`${m.name} ${m.available ? 'published' : 'hidden'}`);
   });
 
-  $('#menu-search')?.addEventListener('input', filterMenu);
-  $('#menu-filter')?.addEventListener('change', filterMenu);
-  $('#order-search')?.addEventListener('input', filterOrders);
-  $('#status-filter')?.addEventListener('change', filterOrders);
+  $('#menu-search')?.addEventListener('input', (e) => {
+    state.menuSearchQuery = e.target.value;
+    render();
+  });
+  $('#menu-filter')?.addEventListener('change', (e) => {
+    state.menuCategoryFilter = e.target.value;
+    render();
+  });
+  $('#cafe-search')?.addEventListener('input', (e) => {
+    state.cafeSearchQuery = e.target.value;
+    render();
+  });
+  $('#cafe-status-filter')?.addEventListener('change', (e) => {
+    state.cafeStatusFilter = e.target.value;
+    render();
+  });
   
   // Table Section Controls & Ring Actions
   $$('[data-toggle-table]').forEach(el => {
