@@ -845,6 +845,7 @@ const defaultState = {
   cartOpen: false,
   selectedQrTable: '01',
   orderViewMode: 'tables',
+  orderDateScope: 'today',
   orderStatusFilter: 'all',
   orderSearchQuery: '',
   expandedTables: {},
@@ -981,6 +982,70 @@ function getActiveOrder(){
 const cafe = () => db.cafes.find(c => c.id === state.cafeId) || db.cafes[0];
 const myMenu = () => db.menu.filter(item => item.cafeId === cafe().id);
 const myOrders = () => db.orders.filter(order => order.cafeId === cafe().id);
+
+function isOrderToday(order) {
+  if (!order) return false;
+  const now = new Date();
+  if (order.timestamp && !isNaN(Number(order.timestamp))) {
+    const d = new Date(Number(order.timestamp));
+    return d.getFullYear() === now.getFullYear() &&
+           d.getMonth() === now.getMonth() &&
+           d.getDate() === now.getDate();
+  }
+  if (order.createdAt) {
+    const d = new Date(order.createdAt);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() === now.getFullYear() &&
+             d.getMonth() === now.getMonth() &&
+             d.getDate() === now.getDate();
+    }
+  }
+  if (order.date && order.date !== 'Today') {
+    const d = new Date(order.date);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() === now.getFullYear() &&
+             d.getMonth() === now.getMonth() &&
+             d.getDate() === now.getDate();
+    }
+    return false;
+  }
+  return true;
+}
+
+function formatOrderDate(order) {
+  if (!order) return 'Today';
+  const now = new Date();
+  if (order.timestamp && !isNaN(Number(order.timestamp))) {
+    const d = new Date(Number(order.timestamp));
+    if (d.getFullYear() === now.getFullYear() &&
+        d.getMonth() === now.getMonth() &&
+        d.getDate() === now.getDate()) {
+      return 'Today';
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.getFullYear() === yesterday.getFullYear() &&
+        d.getMonth() === yesterday.getMonth() &&
+        d.getDate() === yesterday.getDate()) {
+      return 'Yesterday';
+    }
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  return order.date || 'Today';
+}
+
+function getTimeGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 4 && hour < 12) {
+    return 'Good morning';
+  } else if (hour >= 12 && hour < 17) {
+    return 'Good afternoon';
+  } else {
+    return 'Good evening';
+  }
+}
+
+const myTodaysOrders = () => db.orders.filter(order => order.cafeId === cafe().id && isOrderToday(order));
 const clockLabel = value => new Date(`2000-01-01T${value}`).toLocaleTimeString('en-IN', {hour:'numeric', minute:'2-digit'});
 
 function toast(msg){
@@ -1487,7 +1552,10 @@ function sidebar(){
 
 function dashboardView(){
   let adminName = db.platform.adminName || 'Aarav Mehta';
-  return `<div class="app-shell">${sidebar()}<main class="main"><header class="topbar"><div><div class="eyebrow">${state.role==='admin'?`Welcome back, ${esc(adminName)}`:`Good morning, ${esc(cafe().name)}`}</div><h1 class="page-title">${titleForPage()}</h1></div><div class="top-actions"><span class="date-chip">${new Date().toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'numeric'})}</span><button class="outline" id="header-visit-menu" title="Open Guest Menu" style="font-size:12px;padding:8px 12px;">${icon('external-link')} View Live Menu</button>${state.role==='cafe'?`<button class="primary" id="header-take-order" style="font-size:12px;padding:8px 14px;background:#3c2419;">${icon('plus-circle')} Take Order</button>`:''}${state.role==='admin'&&state.page==='cafes'?`<button class="primary" id="add-cafe">${icon('plus')} Add café</button>`:state.role==='cafe'&&state.page==='menu'?`<button class="primary" id="add-menu">${icon('plus')} Add item</button>`:''}</div></header>${pageContent()}</main></div>`;
+  let greetingText = state.role === 'admin' 
+    ? `${getTimeGreeting()}, ${esc(adminName)}` 
+    : `${getTimeGreeting()}, ${esc(cafe().name)}`;
+  return `<div class="app-shell">${sidebar()}<main class="main"><header class="topbar"><div><div class="eyebrow">${greetingText}</div><h1 class="page-title">${titleForPage()}</h1></div><div class="top-actions"><span class="date-chip">${new Date().toLocaleDateString('en-IN',{weekday:'short',month:'short',day:'numeric'})}</span><button class="outline" id="header-visit-menu" title="Open Guest Menu" style="font-size:12px;padding:8px 12px;">${icon('external-link')} View Live Menu</button>${state.role==='cafe'?`<button class="primary" id="header-take-order" style="font-size:12px;padding:8px 14px;background:#3c2419;">${icon('plus-circle')} Take Order</button>`:''}${state.role==='admin'&&state.page==='cafes'?`<button class="primary" id="add-cafe">${icon('plus')} Add café</button>`:state.role==='cafe'&&state.page==='menu'?`<button class="primary" id="add-menu">${icon('plus')} Add item</button>`:''}</div></header>${pageContent()}</main></div>`;
 }
 
 function titleForPage(){
@@ -1508,13 +1576,33 @@ function titleForPage(){
 }
 
 function stats(){
-  let allOrders = db.orders;
-  let orders = state.role === 'admin' ? allOrders : myOrders();
-  let sum = orders.reduce((a, o) => a + o.total, 0);
-  let data = state.role === 'admin'
-    ? [['store','Total cafés',db.cafes.length],['circle-check','Active cafés',db.cafes.filter(c=>c.status==='Active').length],['qr-code','Active QR Links',db.cafes.length],['shopping-bag','Total orders',allOrders.length]]
-    : [['receipt-indian-rupee','Today’s sales',money(sum)],['clock-3','Pending orders',orders.filter(o=>['New','Preparing','Processing'].includes(o.status)).length],['circle-check','Completed',orders.filter(o=>o.status==='Completed').length],['armchair','Active tables',new Set(orders.filter(o=>o.status!=='Completed'&&o.status!=='Cancelled').map(o=>o.table)).size]];
-  return `<section class="grid stat-grid">${data.map(x=>`<article class="stat-card"><div class="stat-icon">${icon(x[0])}</div><div class="stat-num">${x[2]}</div><div class="stat-label">${x[1]}</div></article>`).join('')}</section>`;
+  let allOrders = db.orders || [];
+  let isAdm = state.role === 'admin';
+  if (isAdm) {
+    let todayOrders = allOrders.filter(isOrderToday);
+    let todaySales = todayOrders.filter(o => o.status !== 'Cancelled').reduce((a, o) => a + (Number(o.total) || 0), 0);
+    let data = [
+      ['store', 'Total cafés', db.cafes.length],
+      ['circle-check', 'Active cafés', db.cafes.filter(c => c.status === 'Active').length],
+      ['receipt-indian-rupee', 'Today’s platform sales', money(todaySales)],
+      ['shopping-bag', 'Today’s total orders', todayOrders.length]
+    ];
+    return `<section class="grid stat-grid">${data.map(x => `<article class="stat-card"><div class="stat-icon">${icon(x[0])}</div><div class="stat-num">${x[2]}</div><div class="stat-label">${x[1]}</div></article>`).join('')}</section>`;
+  } else {
+    let cafeOrders = myOrders();
+    let todayOrders = myTodaysOrders();
+    let todaySales = todayOrders.filter(o => o.status !== 'Cancelled').reduce((a, o) => a + (Number(o.total) || 0), 0);
+    let pendingCount = cafeOrders.filter(o => ['New', 'Preparing', 'Processing'].includes(o.status)).length;
+    let activeTablesCount = new Set(cafeOrders.filter(o => o.status !== 'Completed' && o.status !== 'Cancelled' && o.table).map(o => String(o.table).padStart(2, '0'))).size;
+    
+    let data = [
+      ['receipt-indian-rupee', 'Today’s sales', money(todaySales)],
+      ['shopping-bag', 'Today’s orders', todayOrders.length],
+      ['clock-3', 'Pending orders', pendingCount],
+      ['armchair', 'Active tables', activeTablesCount]
+    ];
+    return `<section class="grid stat-grid">${data.map(x => `<article class="stat-card"><div class="stat-icon">${icon(x[0])}</div><div class="stat-num">${x[2]}</div><div class="stat-label">${x[1]}</div></article>`).join('')}</section>`;
+  }
 }
 
 function pageContent(){
@@ -1541,6 +1629,7 @@ function adminDash(){
 function cafeDash(){
   let groups = getCafeTableGroups();
   let activeGroups = groups.filter(g => g.activeOrdersCount > 0 || g.hasNew);
+  let todaysRecent = myTodaysOrders().slice(0, 4);
   return `${stats()}<section class="grid split"><article class="panel"><div class="panel-head"><div><h2 class="panel-title">Active Dining Tables & Live Orders</h2><p class="panel-sub">Organized by dining tables with new item alerts</p></div><button class="outline" onclick="state.page='orders';render()">View All Tables</button></div>${activeGroups.length ? `<div class="dash-tables-list">${activeGroups.slice(0, 4).map(g => `
     <div class="dash-table-row ${g.hasNew ? 'alert-row' : ''}">
       <div class="table-badge ${g.hasNew ? 'glow-ring' : ''}">${esc(g.table)}</div>
@@ -1553,7 +1642,7 @@ function cafeDash(){
         <button class="soft" onclick="state.page='orders';state.expandedTables['${g.table}']=true;render();">${icon('arrow-right')} View Table</button>
       </div>
     </div>
-  `).join('')}</div>` : `<div class="order-list">${myOrders().slice(0,4).map(orderRow).join('')}</div>`}</article>${chart()}</section>`;
+  `).join('')}</div>` : (todaysRecent.length ? `<div class="order-list">${todaysRecent.map(orderRow).join('')}</div>` : `<div class="empty" style="padding:28px 16px;">No orders placed today yet. Scan table QR codes to start dining orders.</div>`)}</article>${chart()}</section>`;
 }
 
 function chart(){
@@ -1561,7 +1650,9 @@ function chart(){
 }
 
 function orderRow(o){
-  return `<div class="order-row"><div class="table-badge">${esc(o.table)}</div><div><div class="order-id">${esc(o.id)}</div><div class="order-time">Table ${esc(o.table)} · ${esc(o.time)}</div></div><div class="order-items">${o.items.map(i=>`${i.qty}× ${esc(i.name)}`).join(', ')}</div><strong>${money(o.total)}</strong><span class="status ${statusClass(o.status)}">${o.status}</span></div>`;
+  const dateStr = formatOrderDate(o);
+  const timeStr = o.time ? `${dateStr} · ${esc(o.time)}` : dateStr;
+  return `<div class="order-row"><div class="table-badge">${esc(o.table || '01')}</div><div><div class="order-id">${esc(o.id)}</div><div class="order-time">Table ${esc(o.table || '01')} · ${timeStr}</div></div><div class="order-items">${(o.items || []).map(i=>`${i.qty}× ${esc(i.name)}`).join(', ')}</div><strong>${money(o.total)}</strong><span class="status ${statusClass(o.status)}">${o.status}</span></div>`;
 }
 
 function cafesPage(){
@@ -1678,13 +1769,16 @@ function getCafeTableGroups() {
         breakdown,
         activeOrdersCount,
         status,
-        latestTime: activeOrders[0]?.time || 'Today',
+        latestTime: activeOrders[0] ? (activeOrders[0].time ? `${formatOrderDate(activeOrders[0])} · ${activeOrders[0].time}` : formatOrderDate(activeOrders[0])) : 'Today',
         latestTimestamp: activeOrders[0]?.timestamp || 0,
         resetTime
       });
     } else {
       // Table is currently vacant / ready for next guest
       const lastPastOrder = pastOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+      const lastSettledStr = lastPastOrder 
+        ? `Last settled ${formatOrderDate(lastPastOrder)} ${lastPastOrder.time || ''}`
+        : 'Ready for guests';
       groups.push({
         table: tbl,
         isVacant: true,
@@ -1698,7 +1792,7 @@ function getCafeTableGroups() {
         breakdown: { subtotal: 0, charges: [], totalCharges: 0, total: 0 },
         activeOrdersCount: 0,
         status: 'Available',
-        latestTime: lastPastOrder ? `Last settled ${lastPastOrder.time || 'earlier'}` : 'Ready for guests',
+        latestTime: lastSettledStr,
         latestTimestamp: resetTime,
         lastSettledTotal: lastPastOrder?.total || 0,
         resetTime
@@ -1803,7 +1897,7 @@ function tableSectionView(g, isExpanded) {
             <div class="batch-header">
               <div class="batch-title">
                 <strong>Order #${esc(ord.id)}</strong>
-                <span class="batch-time">${esc(ord.time || 'Today')}</span>
+                <span class="batch-time">${esc(ord.time ? `${formatOrderDate(ord)} · ${ord.time}` : formatOrderDate(ord))}</span>
                 ${ordIsNew ? `<span class="order-ring-pill animate-ring">${icon('bell-ring')} New Batch</span>` : `<span class="batch-num-badge">Batch #${g.orders.length - idx}</span>`}
               </div>
               <div class="batch-actions" style="display:flex;align-items:center;gap:8px;">
@@ -1883,15 +1977,25 @@ function renderTableSections(filteredGroups) {
 }
 
 function ordersPage(){
+  let dateScope = state.orderDateScope || 'today';
+  let activeFilter = state.orderStatusFilter || 'all';
+  let searchQuery = (state.orderSearchQuery || '').toLowerCase().trim();
+
+  let allCafeOrders = myOrders();
+  let todaysOrders = myTodaysOrders();
+  let targetOrders = dateScope === 'today' ? todaysOrders : allCafeOrders;
+
   let groups = getCafeTableGroups();
   let totalActiveTables = groups.filter(g => !g.isVacant).length;
   let newTablesCount = groups.filter(g => g.hasNew).length;
   let vacantTablesCount = groups.filter(g => g.isVacant).length;
-  let totalOrdersCount = myOrders().length;
-  let activeFilter = state.orderStatusFilter || 'all';
-  let searchQuery = (state.orderSearchQuery || '').toLowerCase().trim();
 
-  let filtered = groups.filter(g => {
+  let todaysCount = todaysOrders.length;
+  let todaysRevenue = todaysOrders.filter(o => o.status !== 'Cancelled').reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  let allCount = allCafeOrders.length;
+
+  // Filter groups for Table Section view
+  let filteredGroups = groups.filter(g => {
     if (activeFilter === 'new' && !g.hasNew) return false;
     if (activeFilter === 'active' && g.isVacant) return false;
     if (activeFilter === 'vacant' && !g.isVacant) return false;
@@ -1900,6 +2004,18 @@ function ordersPage(){
       const matchGuest = (g.customerName || '').toLowerCase().includes(searchQuery);
       const matchOrder = g.orders.some(o => o.id.toLowerCase().includes(searchQuery) || (o.items || []).some(i => i.name.toLowerCase().includes(searchQuery)));
       if (!matchTable && !matchGuest && !matchOrder) return false;
+    }
+    return true;
+  });
+
+  // Filter orders list for Flat List view
+  let filteredOrders = targetOrders.filter(o => {
+    if (activeFilter === 'new' && o.status !== 'New') return false;
+    if (activeFilter === 'active' && !['New', 'Preparing', 'Processing', 'Ready'].includes(o.status)) return false;
+    if (activeFilter === 'vacant') return false;
+    if (searchQuery) {
+      const text = `${o.id} table ${o.table} ${o.customerName || ''} ${(o.items || []).map(i => i.name).join(' ')}`.toLowerCase();
+      if (!text.includes(searchQuery)) return false;
     }
     return true;
   });
@@ -1922,24 +2038,36 @@ function ordersPage(){
             <span><b>${totalActiveTables}</b> Active Dining</span>
           </div>
           <div class="metric-pill">
-            <span class="metric-icon">${icon('shield-check')}</span>
-            <span><b>${vacantTablesCount}</b> Ready / Vacant</span>
+            <span class="metric-icon">${icon('receipt')}</span>
+            <span><b>${todaysCount}</b> ${todaysCount === 1 ? 'Order' : 'Orders'} Today</span>
           </div>
           <div class="metric-pill">
-            <span class="metric-icon">${icon('receipt')}</span>
-            <span><b>${totalOrdersCount}</b> Orders Today</span>
+            <span class="metric-icon">${icon('receipt-indian-rupee')}</span>
+            <span><b>${money(todaysRevenue)}</b> Today's Sales</span>
+          </div>
+          <div class="metric-pill">
+            <span class="metric-icon">${icon('shield-check')}</span>
+            <span><b>${vacantTablesCount}</b> Ready / Vacant</span>
           </div>
         </div>
       </div>
     </div>
     <div class="section-bar orders-filter-bar">
-      <div class="filter-row">
+      <div class="filter-row" style="gap:12px;align-items:center;">
         <div class="search-wrap">
           ${icon('search')}
           <input class="search" id="order-search-input" placeholder="Search table, guest, item or Order ID..." value="${esc(state.orderSearchQuery || '')}">
         </div>
+        <div class="date-scope-pills">
+          <button type="button" class="date-scope-btn ${dateScope === 'today' ? 'active' : ''}" data-date-scope="today">
+            ${icon('calendar')} Today's Orders (${todaysCount})
+          </button>
+          <button type="button" class="date-scope-btn ${dateScope === 'all' ? 'active' : ''}" data-date-scope="all">
+            ${icon('history')} All Time (${allCount})
+          </button>
+        </div>
         <div class="filter-tabs-pills">
-          <button type="button" class="filter-tab-pill ${activeFilter === 'all' ? 'active' : ''}" data-filter-tab="all">All Tables (${groups.length})</button>
+          <button type="button" class="filter-tab-pill ${activeFilter === 'all' ? 'active' : ''}" data-filter-tab="all">All (${state.orderViewMode === 'list' ? filteredOrders.length : groups.length})</button>
           <button type="button" class="filter-tab-pill ${activeFilter === 'new' ? 'active' : ''} ${newTablesCount > 0 ? 'has-badge' : ''}" data-filter-tab="new">${icon('bell-ring')} Needs Action (${newTablesCount})</button>
           <button type="button" class="filter-tab-pill ${activeFilter === 'active' ? 'active' : ''}" data-filter-tab="active">Active Dining (${totalActiveTables})</button>
           <button type="button" class="filter-tab-pill ${activeFilter === 'vacant' ? 'active' : ''}" data-filter-tab="vacant">Ready / Vacant (${vacantTablesCount})</button>
@@ -1947,11 +2075,11 @@ function ordersPage(){
       </div>
       <div class="view-mode-toggle">
         <button type="button" class="outline ${state.orderViewMode !== 'list' ? 'active' : ''}" id="view-mode-tables" title="Organized Table View">${icon('layout-grid')} Table Sections</button>
-        <button type="button" class="outline ${state.orderViewMode === 'list' ? 'active' : ''}" id="view-mode-list" title="Flat List View">${icon('list')} All Orders List</button>
+        <button type="button" class="outline ${state.orderViewMode === 'list' ? 'active' : ''}" id="view-mode-list" title="Flat List View">${icon('list')} Orders List</button>
       </div>
     </div>
     <div id="orders-content-container">
-      ${state.orderViewMode === 'list' ? ordersTable(myOrders()) : renderTableSections(filtered)}
+      ${state.orderViewMode === 'list' ? ordersTable(filteredOrders) : renderTableSections(filteredGroups)}
     </div>
   </section>`;
 }
@@ -2026,11 +2154,13 @@ function acknowledgeTableOrders(tableNum) {
 
 function ordersTable(data){
   const c = cafe();
-  return `<div style="overflow:auto"><table class="table"><thead><tr><th>Order</th><th>Table & time</th><th>Items</th><th>Charges Breakdown</th><th>Total</th><th>Status</th><th>Print / Actions</th></tr></thead><tbody>${data.length?data.map(o=>{
+  return `<div style="overflow:auto"><table class="table"><thead><tr><th>Order</th><th>Table</th><th>Date & Time</th><th>Items</th><th>Charges Breakdown</th><th>Total</th><th>Status</th><th>Print / Actions</th></tr></thead><tbody>${data.length?data.map(o=>{
     const bd = calculateOrderBreakdown(o.items || [], o.cafeId || c.id);
+    const dateStr = formatOrderDate(o);
     return `<tr>
-      <td><div class="cell-title">${esc(o.id)}</div><div class="cell-sub">${esc(o.customerName || (o.date || 'Today'))}</div></td>
-      <td><div class="table-badge">${esc(o.table)}</div><div class="cell-sub">${esc(o.time || '')}</div></td>
+      <td><div class="cell-title">${esc(o.id)}</div><div class="cell-sub">${esc(o.customerName || 'Walk-in')}</div></td>
+      <td><div class="table-badge">${esc(o.table || '01')}</div></td>
+      <td><div class="cell-title" style="font-size:12px;font-weight:600;">${esc(dateStr)}</div><div class="cell-sub">${esc(o.time || '')}</div></td>
       <td>${(o.items || []).map(i=>`<div class="cell-sub">${i.qty}× ${esc(i.name)} (${money(i.price)})</div>`).join('')}</td>
       <td>
         <div style="font-size:11.5px;display:flex;flex-direction:column;gap:2px;">
@@ -2040,7 +2170,7 @@ function ordersTable(data){
       </td>
       <td class="cell-title" style="color:#1b683f;font-weight:800;">${money(o.total || bd.total)}</td>
       <td>
-        <select class="select order-status" data-order="${o.id}" style="height:34px">
+        <select class="select order-status-select" data-order="${o.id}" style="height:34px">
           <option ${o.status==='New'?'selected':''}>New</option>
           <option ${o.status==='Preparing'?'selected':''}>Preparing</option>
           <option ${o.status==='Ready'?'selected':''}>Ready</option>
@@ -2056,7 +2186,7 @@ function ordersTable(data){
         </div>
       </td>
     </tr>`;
-  }).join(''):`<tr><td colspan="7"><div class="empty">No orders match those filters.</div></td></tr>`}</tbody></table></div>`;
+  }).join(''):`<tr><td colspan="8"><div class="empty">No orders match those filters.</div></td></tr>`}</tbody></table></div>`;
 }
 
 // ========================================================
@@ -2810,6 +2940,14 @@ function bind(){
     render();
   });
 
+  $$('.date-scope-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      state.orderDateScope = btn.dataset.dateScope;
+      render();
+    };
+  });
+
   $$('.filter-tab-pill').forEach(btn => {
     btn.onclick = () => {
       state.orderStatusFilter = btn.dataset.filterTab;
@@ -3184,23 +3322,37 @@ function filterMenu(){
 }
 
 function filterOrders(){
-  let q = ($('#order-search')?.value || '').toLowerCase().trim();
-  let s = $('#status-filter')?.value || 'All orders';
+  let q = ($('#order-search-input')?.value || $('#order-search')?.value || '').toLowerCase().trim();
+  let s = state.orderStatusFilter || $('#status-filter')?.value || 'all';
+  let dateScope = state.orderDateScope || 'today';
+  let targetOrders = dateScope === 'today' ? myTodaysOrders() : myOrders();
   let el = $('#orders-table');
   let countLabel = $('#order-count-label');
-  let filtered = myOrders().filter(o => {
+  let filtered = targetOrders.filter(o => {
     const text = (o.id + ' table ' + o.table + ' ' + (o.customerName || '') + ' ' + (o.items || []).map(i => i.name).join(' ')).toLowerCase();
-    return (!q || text.includes(q)) && (s === 'All orders' || o.status === s);
+    const matchesSearch = !q || text.includes(q);
+    const matchesStatus = s === 'all' || s === 'All orders' || 
+      (s === 'new' ? o.status === 'New' : 
+       s === 'active' ? ['New', 'Preparing', 'Processing', 'Ready'].includes(o.status) : 
+       s === 'completed' ? o.status === 'Completed' : 
+       o.status.toLowerCase() === s.toLowerCase());
+    return matchesSearch && matchesStatus;
   });
   if(el){
     el.innerHTML = ordersTable(filtered);
-    $$('.order-status', el).forEach(sel => sel.onchange = () => {
+    $$('.order-status-select, .order-status', el).forEach(sel => sel.onchange = () => {
       let o = db.orders.find(ord => ord.id === sel.dataset.order);
       if(o){
         o.status = sel.value;
+        if(o.status !== 'New'){
+          o.isNew = false;
+          if(Array.isArray(o.items)){
+            o.items.forEach(i => i.isNew = false);
+          }
+        }
         save();
-        toast(`${o.id} is now ${o.status}`);
-        filterOrders();
+        toast(`Order ${o.id} status updated to ${o.status}`);
+        render();
       }
     });
     $$('.btn-print-order-bill', el).forEach(b => {
@@ -3213,7 +3365,7 @@ function filterOrders(){
     });
   }
   if(countLabel){
-    countLabel.textContent = `${myOrders().length} orders today`;
+    countLabel.textContent = `${myTodaysOrders().length} orders today`;
   }
 }
 

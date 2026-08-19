@@ -1537,6 +1537,38 @@ a { text-decoration: none; color: inherit; }
   margin-bottom: 22px;
 }
 
+.date-scope-pills {
+  display: flex;
+  gap: 4px;
+  background: #ede6dc;
+  padding: 3px;
+  border-radius: 20px;
+}
+
+.date-scope-btn {
+  border: none;
+  background: transparent;
+  color: var(--coffee-dark);
+  padding: 6px 13px;
+  border-radius: 16px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.date-scope-btn:hover {
+  background: #e1d8cc;
+}
+
+.date-scope-btn.active {
+  background: var(--coffee);
+  color: #fff;
+}
+
 .filter-tabs-pills {
   display: flex;
   gap: 8px;
