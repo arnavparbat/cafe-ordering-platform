@@ -2845,7 +2845,33 @@ function customerView(){
   const totalItemsCount = sessionOrders.reduce((sum, ord) => sum + (ord.items || []).reduce((isum, itm) => isum + itm.qty, 0), 0);
   const grandTotal = sessionOrders.reduce((sum, ord) => sum + (ord.total || 0), 0);
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>`<article class="customer-card"><img src="${m.image}" alt="${esc(m.name)}"><div class="customer-card-content"><div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div><h3>${esc(m.name)}</h3><p>${esc(m.description)}</p><div class="customer-card-footer"><strong class="price">${money(m.price)}</strong><button class="add-btn" data-add="${m.id}" aria-label="Add ${esc(m.name)}">+</button></div></div></article>`).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : (sessionOrders.length > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-track-btn" style="background:#281811;border-color:#b99264;" aria-label="View Table Orders and Running Bill"><div class="mobile-cart-left"><div class="mobile-cart-badge" style="background:#deb57b;color:#281811;">${sessionOrders.length}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">Table ${esc(state.table)} · ${totalItemsCount} items ordered</div><div class="mobile-cart-total" style="color:#d5f3df;">${money(grandTotal)}</div></div></div><div class="mobile-cart-right"><span>View Bill</span> ${icon('arrow-right')}</div></button></aside>` : '')}</main>`;
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>{
+    const inCart = state.cart.find(x => x.id === m.id);
+    const inCartQty = inCart ? inCart.qty : 0;
+    return `<article class="customer-card ${inCartQty > 0 ? 'in-cart' : ''}">
+      <div class="customer-card-media">
+        <img src="${m.image}" alt="${esc(m.name)}" loading="lazy">
+        ${inCartQty > 0 ? `<span class="customer-item-cart-qty-badge">${inCartQty} in cart</span>` : ''}
+      </div>
+      <div class="customer-card-content">
+        <div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div>
+        <h3>${esc(m.name)}</h3>
+        <p>${esc(m.description)}</p>
+        <div class="customer-card-footer">
+          <strong class="price">${money(m.price)}</strong>
+          ${inCartQty > 0 ? `
+            <div class="customer-item-stepper" aria-label="${esc(m.name)} quantity: ${inCartQty}">
+              <button type="button" class="customer-stepper-btn" data-customer-qty="${m.id}" data-change="-1" title="Decrease quantity" aria-label="Decrease ${esc(m.name)} quantity">−</button>
+              <b class="customer-stepper-val">${inCartQty}</b>
+              <button type="button" class="customer-stepper-btn" data-customer-qty="${m.id}" data-change="1" title="Increase quantity" aria-label="Increase ${esc(m.name)} quantity">+</button>
+            </div>
+          ` : `
+            <button type="button" class="add-btn" data-add="${m.id}" title="Add ${esc(m.name)} to cart" aria-label="Add ${esc(m.name)}">+</button>
+          `}
+        </div>
+      </div>
+    </article>`;
+  }).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : (sessionOrders.length > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-track-btn" style="background:#281811;border-color:#b99264;" aria-label="View Table Orders and Running Bill"><div class="mobile-cart-left"><div class="mobile-cart-badge" style="background:#deb57b;color:#281811;">${sessionOrders.length}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">Table ${esc(state.table)} · ${totalItemsCount} items ordered</div><div class="mobile-cart-total" style="color:#d5f3df;">${money(grandTotal)}</div></div></div><div class="mobile-cart-right"><span>View Bill</span> ${icon('arrow-right')}</div></button></aside>` : '')}</main>`;
 }
 
 function cartDrawer(){
@@ -3256,13 +3282,39 @@ function bind(){
     render();
   });
 
-  $$('[data-add]').forEach(b => b.onclick = () => {
+  $$('[data-add]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
     let ex = state.cart.find(x => x.id === b.dataset.add);
     let item = myMenu().find(m => m.id === b.dataset.add);
     ex ? ex.qty++ : state.cart.push({id: b.dataset.add, qty: 1});
     state.cartOpen = false;
+    saveSession();
     render();
-    toast(`Added ${item ? item.name : 'item'} to cart`);
+    const currentQty = ex ? ex.qty : 1;
+    toast(`Added ${item ? item.name : 'item'} (${currentQty} in cart)`);
+  });
+
+  $$('[data-customer-qty]').forEach(b => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const itemId = b.dataset.customerQty;
+      const change = parseInt(b.dataset.change, 10) || 0;
+      const item = myMenu().find(m => m.id === itemId);
+      let x = state.cart.find(x => x.id === itemId);
+      if (x) {
+        x.qty += change;
+        if (x.qty <= 0) {
+          state.cart = state.cart.filter(i => i.id !== itemId);
+          toast(`Removed ${item ? item.name : 'item'} from cart`);
+        } else if (change > 0) {
+          toast(`Added ${item ? item.name : 'item'} (${x.qty} in cart)`);
+        } else {
+          toast(`Updated ${item ? item.name : 'item'} (${x.qty} in cart)`);
+        }
+        saveSession();
+        render();
+      }
+    };
   });
   
   $('#btn-gatekeeper-flip')?.addEventListener('click', async () => {
@@ -3314,12 +3366,14 @@ function bind(){
     if(x){
       x.qty += +b.dataset.change;
       if(x.qty <= 0) state.cart = state.cart.filter(i => i !== x);
+      saveSession();
       render();
     }
   });
 
   $$('[data-remove]').forEach(b => b.onclick = () => {
     state.cart = state.cart.filter(x => x.id !== b.dataset.remove);
+    saveSession();
     render();
   });
 
@@ -3372,6 +3426,7 @@ function bind(){
   $('#new-order')?.addEventListener('click', () => {
     state.view = 'customer';
     state.cart = [];
+    saveSession();
     render();
   });
 
@@ -3998,6 +4053,7 @@ async function placeOrder(){
   state.cart = [];
   state.cartOpen = false;
   state.view = 'confirmation';
+  saveSession();
   render();
 }
 
