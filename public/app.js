@@ -21,7 +21,9 @@ const seed = {
   platform: {
     companyName: "Eat 'N Greet",
     adminName: "Aarav Mehta",
-    adminEmail: "aarav@eatngreet.console"
+    adminEmail: "aarav@eatngreet.console",
+    adminUsername: "admin",
+    adminPassword: "admin123"
   },
   cafes: [
     {
@@ -162,8 +164,10 @@ function pushCloudDb(immediate = false) {
 db.platform = Object.assign({
   companyName: "Eat 'N Greet",
   adminName: "Aarav Mehta",
-  adminEmail: "aarav@eatngreet.console"
-}, db.platform);
+  adminEmail: "aarav@eatngreet.console",
+  adminUsername: "admin",
+  adminPassword: "admin123"
+}, db.platform || {});
 
 if (!db.cafes || !db.cafes.length) db.cafes = seed.cafes;
 db.menu = db.menu || seed.menu;
@@ -1767,10 +1771,91 @@ function stats(){
   }
 }
 
+function adminSettingsPage(){
+  let companyName = db.platform.companyName || "Eat 'N Greet";
+  let adminName = db.platform.adminName || 'Aarav Mehta';
+  let adminEmail = db.platform.adminEmail || 'aarav@eatngreet.console';
+  let adminUsername = db.platform.adminUsername || 'admin';
+  let adminPassword = db.platform.adminPassword || 'admin123';
+
+  return `<div class="panel form-panel admin-settings-panel" style="max-width:740px">
+    <div class="panel-head" style="margin-bottom:14px">
+      <div>
+        <h2 class="panel-title">System & Security Settings</h2>
+        <p class="panel-sub">Manage platform branding, update administrator login credentials, and sync with Cloudflare.</p>
+      </div>
+      <span class="charge-pill upi" style="background:#eef7ee;color:#2e7d32;border:1px solid #c8e6c9;font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;display:inline-flex;align-items:center;gap:6px">
+        <span style="width:7px;height:7px;border-radius:50%;background:#2e7d32;display:inline-block"></span> Cloudflare Synced
+      </span>
+    </div>
+
+    <form id="admin-settings-form" style="margin-top:18px">
+      <!-- Administrator Security & Login Credentials -->
+      <div style="background:#fffcf7;border:1px solid #ebd9c8;border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <strong style="font-size:14px;color:var(--coffee);display:inline-flex;align-items:center;gap:6px">${icon('shield')} Administrator Login Credentials</strong>
+        </div>
+        <p class="cell-sub" style="margin-bottom:16px;color:var(--muted);font-size:12px">Update the username and password required to sign in to the Admin Portal. Changes are applied immediately across all active sessions and stored permanently in Cloudflare cloud storage.</p>
+        
+        <div class="settings-grid">
+          <div class="field">
+            <label>Admin Username</label>
+            <input name="adminUsername" id="admin-username-input" required value="${esc(adminUsername)}" placeholder="e.g. admin" autocomplete="username">
+          </div>
+          <div class="field">
+            <label>Admin Password</label>
+            <div class="password-wrap">
+              <input name="adminPassword" id="admin-password-input" type="password" required value="${esc(adminPassword)}" placeholder="Enter new admin password" autocomplete="current-password">
+              <button type="button" class="show-pass" id="toggle-admin-pass" title="Toggle password visibility">${icon('eye')}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Company & Platform Profile -->
+      <div style="background:#faf8f5;border:1px solid #e9e3da;border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <strong style="font-size:14px;color:var(--ink);display:inline-flex;align-items:center;gap:6px">${icon('building-2')} Company & Platform Profile</strong>
+        </div>
+        <p class="cell-sub" style="margin-bottom:16px;color:var(--muted);font-size:12px">This is your company identity shown on the sign-in screen, guest menus, and staff consoles.</p>
+        
+        <div class="field">
+          <label>Company / Brand Name</label>
+          <input name="companyName" required value="${esc(companyName)}" placeholder="e.g. Eat 'N Greet">
+        </div>
+        <div class="settings-grid">
+          <div class="field">
+            <label>Administrator Full Name</label>
+            <input name="adminName" required value="${esc(adminName)}" placeholder="e.g. Aarav Mehta">
+          </div>
+          <div class="field">
+            <label>Administrator Email Address</label>
+            <input name="adminEmail" type="email" required value="${esc(adminEmail)}" placeholder="e.g. admin@eatngreet.console">
+          </div>
+        </div>
+      </div>
+
+      <!-- Cloudflare & GitHub Deployment Notes -->
+      <div style="background:#f4f7fb;border:1px solid #d4e2f4;border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:12px;color:#2c405a;line-height:1.6">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;font-weight:600">
+          ${icon('cloud')} Cloudflare & GitHub Deployment
+        </div>
+        <div>All modifications are automatically saved in real time to the Cloudflare Durable Object storage. To deploy code changes or updates, push your Git commits to GitHub (<code>origin/main</code>), which triggers Cloudflare automated deployment.</div>
+      </div>
+
+      <div>
+        <button class="primary" type="submit" style="padding:12px 24px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:8px">
+          ${icon('save')} Save Settings & Credentials
+        </button>
+      </div>
+    </form>
+  </div>`;
+}
+
 function pageContent(){
   if(state.role === 'admin'){
     if(state.page === 'cafes' || state.page === 'accounts') return cafesPage();
-    if(state.page === 'settings') return `<div class="panel form-panel"><h2 class="panel-title">Company settings</h2><p class="panel-sub">This is your company name. Café staff see it in their portal and it appears on the sign-in page. Individual cafés cannot change it.</p><form id="brand-form" style="margin-top:22px"><div class="field"><label>Company heading</label><input name="companyName" required value="${esc(db.platform.companyName)}"></div><div class="field"><label>Administrator name</label><input name="adminName" required value="${esc(db.platform.adminName || 'Aarav Mehta')}"></div><div class="field"><label>Administrator email</label><input name="adminEmail" type="email" required value="${esc(db.platform.adminEmail || 'aarav@eatngreet.console')}"></div><button class="primary" type="submit">Save company settings</button></form></div>`;
+    if(state.page === 'settings') return adminSettingsPage();
     return adminDash();
   }
   if(state.page === 'orders') return ordersPage();
@@ -3069,7 +3154,9 @@ function bind(){
     let u = ($('#username')?.value || '').trim();
     let p = $('#password')?.value || '';
     let matchingCafe = db.cafes.find(c => (c.username === u || (u === 'juniper' && c.username === 'eatngreet') || (u === 'eatngreet' && c.username === 'eatngreet') || c.slug === u) && c.password === p && c.status === 'Active');
-    let valid = state.role === 'admin' ? u === 'admin' && p === 'admin123' : !!matchingCafe;
+    let adminUser = (db.platform.adminUsername || 'admin').trim();
+    let adminPass = db.platform.adminPassword || 'admin123';
+    let valid = state.role === 'admin' ? (u.toLowerCase() === adminUser.toLowerCase() && p === adminPass) : !!matchingCafe;
     if(!valid) return toast('Please check your username and password');
     if(matchingCafe) state.cafeId = matchingCafe.id;
     state.view = 'dashboard';
@@ -3286,19 +3373,45 @@ function bind(){
     }
   });
 
-  $('#brand-form')?.addEventListener('submit', e => {
+  $('#toggle-admin-pass')?.addEventListener('click', () => {
+    const input = $('#admin-password-input');
+    if (input) {
+      const isPass = input.type === 'password';
+      input.type = isPass ? 'text' : 'password';
+      const btn = $('#toggle-admin-pass');
+      if (btn) btn.innerHTML = isPass ? icon('eye-off') : icon('eye');
+    }
+  });
+
+  const handleAdminSettingsSubmit = e => {
     e.preventDefault();
     let f = new FormData(e.target);
-    let companyName = f.get('companyName')?.trim();
-    let adminName = f.get('adminName')?.trim();
-    let adminEmail = f.get('adminEmail')?.trim();
-    if(companyName) db.platform.companyName = companyName;
-    if(adminName) db.platform.adminName = adminName;
-    if(adminEmail) db.platform.adminEmail = adminEmail;
-    save();
+    let companyName = (f.get('companyName') || '').trim();
+    let adminName = (f.get('adminName') || '').trim();
+    let adminEmail = (f.get('adminEmail') || '').trim();
+    let adminUsername = (f.get('adminUsername') || '').trim();
+    let adminPassword = (f.get('adminPassword') || '').trim();
+
+    if (!adminUsername) {
+      return toast('Admin username cannot be empty');
+    }
+    if (!adminPassword) {
+      return toast('Admin password cannot be empty');
+    }
+
+    if (companyName) db.platform.companyName = companyName;
+    if (adminName) db.platform.adminName = adminName;
+    if (adminEmail) db.platform.adminEmail = adminEmail;
+    db.platform.adminUsername = adminUsername;
+    db.platform.adminPassword = adminPassword;
+
+    save(true);
     render();
-    toast('Company settings updated');
-  });
+    toast('Admin credentials & settings saved! Synced to Cloudflare.');
+  };
+
+  $('#brand-form')?.addEventListener('submit', handleAdminSettingsSubmit);
+  $('#admin-settings-form')?.addEventListener('submit', handleAdminSettingsSubmit);
 
   $('#wifi-form')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -4253,6 +4366,15 @@ async function syncCloudDb(){
           const oldOrders = db.orders || [];
           const oldIds = new Set(oldOrders.map(o => o.id));
           
+          if(serverDb.platform){
+            serverDb.platform = Object.assign({
+              companyName: "Eat 'N Greet",
+              adminName: "Aarav Mehta",
+              adminEmail: "aarav@eatngreet.console",
+              adminUsername: "admin",
+              adminPassword: "admin123"
+            }, serverDb.platform);
+          }
           db = serverDb;
           lastDbSnapshot = serverSnapshot;
           localStorage.setItem('juniper-db', JSON.stringify(db));
@@ -4298,6 +4420,15 @@ window.addEventListener('storage', e => {
     try {
       const freshDb = JSON.parse(e.newValue);
       if(freshDb && freshDb.orders){
+        if(freshDb.platform){
+          freshDb.platform = Object.assign({
+            companyName: "Eat 'N Greet",
+            adminName: "Aarav Mehta",
+            adminEmail: "aarav@eatngreet.console",
+            adminUsername: "admin",
+            adminPassword: "admin123"
+          }, freshDb.platform);
+        }
         const oldOrders = db.orders || [];
         const oldIds = new Set(oldOrders.map(o => o.id));
         const newOrders = (freshDb.orders || []).filter(o => !oldIds.has(o.id) && o.cafeId === cafe().id);
