@@ -1168,12 +1168,16 @@ function getTimeGreeting() {
 const myTodaysOrders = () => db.orders.filter(order => order.cafeId === cafe().id && isOrderToday(order));
 const clockLabel = value => new Date(`2000-01-01T${value}`).toLocaleTimeString('en-IN', {hour:'numeric', minute:'2-digit'});
 
+let toastTimeout = null;
 function toast(msg){
   const el = $('#toast');
   if(!el) return;
+  clearTimeout(toastTimeout);
   el.textContent = msg;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2600);
+  toastTimeout = setTimeout(() => {
+    el.classList.remove('show');
+  }, 2200);
 }
 
 function copyToClipboard(text, message = 'Link copied to clipboard!') {
@@ -3607,14 +3611,11 @@ function bind(){
   $$('[data-add]').forEach(b => b.onclick = (e) => {
     e.stopPropagation();
     let ex = state.cart.find(x => x.id === b.dataset.add);
-    let item = myMenu().find(m => m.id === b.dataset.add);
     ex ? ex.qty++ : state.cart.push({id: b.dataset.add, qty: 1});
     state.cartOpen = false;
     state.boatAfloat = true;
     saveSession();
     render();
-    const currentQty = ex ? ex.qty : 1;
-    toast(`Added ${item ? item.name : 'item'} (${currentQty} in cart)`);
     triggerBoatPopUp(4500);
   });
 
@@ -3623,17 +3624,11 @@ function bind(){
       e.stopPropagation();
       const itemId = b.dataset.customerQty;
       const change = parseInt(b.dataset.change, 10) || 0;
-      const item = myMenu().find(m => m.id === itemId);
       let x = state.cart.find(x => x.id === itemId);
       if (x) {
         x.qty += change;
         if (x.qty <= 0) {
           state.cart = state.cart.filter(i => i.id !== itemId);
-          toast(`Removed ${item ? item.name : 'item'} from cart`);
-        } else if (change > 0) {
-          toast(`Added ${item ? item.name : 'item'} (${x.qty} in cart)`);
-        } else {
-          toast(`Updated ${item ? item.name : 'item'} (${x.qty} in cart)`);
         }
         state.boatAfloat = state.cart.length > 0;
         saveSession();
