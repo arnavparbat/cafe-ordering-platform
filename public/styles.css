@@ -3021,10 +3021,26 @@ a { text-decoration: none; color: inherit; }
   border: 1px solid #dbc4ec;
 }
 
+.charge-pill.upi {
+  background: #eef2ff;
+  color: #312e81;
+  border: 1px solid #c7d2fe;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
 .charge-pill.off {
   background: #f2ede6;
   color: #8c7e72;
   border: 1px solid #dfd5c9;
+}
+
+.cafe-upi-col-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
 }
 
 /* Charges Modal Studio */
