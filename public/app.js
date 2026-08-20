@@ -957,6 +957,7 @@ const defaultState = {
   confirmed: null,
   orderPlacedAt: null,
   cartOpen: false,
+  boatAfloat: false,
   selectedQrTable: '01',
   orderViewMode: 'tables',
   orderDateScope: 'today',
@@ -1604,6 +1605,50 @@ function handleGatekeeperQrScan(qrContent) {
   }
 }
 
+let boatSinkTimeout = null;
+
+function triggerBoatPopUp(durationMs = 4500) {
+  clearTimeout(boatSinkTimeout);
+  state.boatAfloat = true;
+  const bar = document.querySelector('.mobile-cart-bar');
+  const peek = document.querySelector('.boat-peek-pill');
+  if (bar) {
+    bar.classList.remove('boat-sinking', 'boat-sunk');
+    bar.classList.add('boat-floating');
+  }
+  if (peek) {
+    peek.classList.add('peek-hidden');
+  }
+  
+  boatSinkTimeout = setTimeout(() => {
+    sinkBoat();
+  }, durationMs);
+}
+
+function sinkBoat() {
+  clearTimeout(boatSinkTimeout);
+  const bar = document.querySelector('.mobile-cart-bar');
+  const peek = document.querySelector('.boat-peek-pill');
+  if (bar && bar.classList.contains('boat-floating')) {
+    bar.classList.remove('boat-floating');
+    bar.classList.add('boat-sinking');
+    setTimeout(() => {
+      state.boatAfloat = false;
+      if (bar) {
+        bar.classList.remove('boat-sinking');
+        bar.classList.add('boat-sunk');
+      }
+      if (peek) {
+        peek.classList.remove('peek-hidden');
+      }
+    }, 700);
+  } else {
+    state.boatAfloat = false;
+    if (bar) bar.classList.add('boat-sunk');
+    if (peek) peek.classList.remove('peek-hidden');
+  }
+}
+
 function render(){
   document.title = `${db.platform.companyName || "Eat 'N Greet"} — Café Console`;
   saveSession();
@@ -1659,6 +1704,13 @@ function render(){
     }
   }
   bind();
+
+  if (state.view === 'customer' && state.boatAfloat) {
+    clearTimeout(boatSinkTimeout);
+    boatSinkTimeout = setTimeout(() => {
+      sinkBoat();
+    }, 4200);
+  }
 
   // Restore focus and cursor selection position after re-rendering
   if (activeId || activeName || activeSelector) {
@@ -3005,6 +3057,54 @@ function customerView(){
   const totalItemsCount = sessionOrders.reduce((sum, ord) => sum + (ord.items || []).reduce((isum, itm) => isum + itm.qty, 0), 0);
   const grandTotal = sessionOrders.reduce((sum, ord) => sum + (ord.total || 0), 0);
 
+  const hasCart = cartCount > 0;
+  const hasOrders = sessionOrders.length > 0;
+  const showFloatingArea = (hasCart || hasOrders) && !state.cartOpen;
+
+  const floatingMarkup = showFloatingArea ? `
+    <aside class="mobile-cart-bar-wrap">
+      <!-- Mini Peek Float Pill (Shows when boat is sunk) -->
+      <button class="boat-peek-pill ${state.boatAfloat ? 'peek-hidden' : ''}" id="boat-peek-trigger" aria-label="Show Order Details" title="Tap to show order / bill summary">
+        ${hasCart ? `
+          <span class="peek-icon-wrap">${icon('shopping-bag')}</span>
+          <span class="peek-text"><b>${cartCount}</b> ${cartCount === 1 ? 'item' : 'items'} · <b>${money(cartSubtotal)}</b></span>
+          <span class="peek-arrow">${icon('chevron-up')}</span>
+        ` : `
+          <span class="peek-icon-wrap" style="background:#deb57b;color:#281811;">${icon('receipt')}</span>
+          <span class="peek-text">Table <b>${esc(state.table)}</b> · <b>${money(grandTotal)}</b></span>
+          <span class="peek-arrow">${icon('chevron-up')}</span>
+        `}
+      </button>
+
+      <!-- Main Floating Boat Bar (Pop Up & Sink in water effect) -->
+      <div class="mobile-cart-bar ${state.boatAfloat ? 'boat-floating' : 'boat-sunk'}" id="${hasCart ? 'floating-cart-btn' : 'floating-track-btn'}" style="${!hasCart && hasOrders ? 'background:linear-gradient(135deg, #2c1b12, #1b0f0a);border-color:#b99264;' : ''}" role="button" tabindex="0" aria-label="${hasCart ? 'View Cart and Checkout' : 'View Table Orders and Running Bill'}">
+        <div class="mobile-cart-left">
+          <div class="mobile-cart-badge" style="${!hasCart && hasOrders ? 'background:#deb57b;color:#281811;' : ''}">
+            ${hasCart ? cartCount : sessionOrders.length}
+          </div>
+          <div class="mobile-cart-info">
+            <div class="mobile-cart-heading">
+              ${hasCart ? `${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order` : `Table ${esc(state.table)} · ${totalItemsCount} items ordered`}
+            </div>
+            <div class="mobile-cart-total" style="${!hasCart && hasOrders ? 'color:#d5f3df;' : ''}">
+              ${money(hasCart ? cartSubtotal : grandTotal)}
+            </div>
+          </div>
+        </div>
+
+        <div class="mobile-cart-right-group">
+          <div class="mobile-cart-right">
+            <span>${hasCart ? 'View Order' : 'View Bill'}</span>
+            ${icon('arrow-right')}
+          </div>
+          <button type="button" class="boat-sink-btn" id="boat-sink-action" title="Sink down" aria-label="Minimize and sink window">
+            ${icon('chevron-down')}
+          </button>
+        </div>
+      </div>
+    </aside>
+  ` : '';
+
   return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>{
     const inCart = state.cart.find(x => x.id === m.id);
     const inCartQty = inCart ? inCart.qty : 0;
@@ -3031,7 +3131,7 @@ function customerView(){
         </div>
       </div>
     </article>`;
-  }).join('')}</div></section>${cartDrawer()}${cartCount > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-cart-btn" aria-label="View Cart and Checkout"><div class="mobile-cart-left"><div class="mobile-cart-badge">${cartCount}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">${cartCount} ${cartCount === 1 ? 'item' : 'items'} in order</div><div class="mobile-cart-total">${money(cartSubtotal)}</div></div></div><div class="mobile-cart-right"><span>View Order</span> ${icon('arrow-right')}</div></button></aside>` : (sessionOrders.length > 0 && !state.cartOpen ? `<aside class="mobile-cart-bar-wrap"><button class="mobile-cart-bar" id="floating-track-btn" style="background:#281811;border-color:#b99264;" aria-label="View Table Orders and Running Bill"><div class="mobile-cart-left"><div class="mobile-cart-badge" style="background:#deb57b;color:#281811;">${sessionOrders.length}</div><div class="mobile-cart-info"><div class="mobile-cart-heading">Table ${esc(state.table)} · ${totalItemsCount} items ordered</div><div class="mobile-cart-total" style="color:#d5f3df;">${money(grandTotal)}</div></div></div><div class="mobile-cart-right"><span>View Bill</span> ${icon('arrow-right')}</div></button></aside>` : '')}</main>`;
+  }).join('')}</div></section>${cartDrawer()}${floatingMarkup}</main>`;
 }
 
 function cartDrawer(){
@@ -3144,10 +3244,40 @@ function bind(){
     render();
   });
 
-  $('#floating-cart-btn')?.addEventListener('click', () => {
+  $('#floating-cart-btn')?.addEventListener('click', (e) => {
+    if (e.target.closest('#boat-sink-action')) return;
     state.cartOpen = true;
     render();
   });
+
+  $('#floating-track-btn')?.addEventListener('click', (e) => {
+    if (e.target.closest('#boat-sink-action')) return;
+    state.view = 'confirmation';
+    render();
+  });
+
+  $('#boat-peek-trigger')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    triggerBoatPopUp(5000);
+  });
+
+  $('#boat-sink-action')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    sinkBoat();
+  });
+
+  const floatingBarEl = $('.mobile-cart-bar');
+  if (floatingBarEl) {
+    floatingBarEl.addEventListener('mouseenter', () => {
+      clearTimeout(boatSinkTimeout);
+    });
+    floatingBarEl.addEventListener('mouseleave', () => {
+      if (state.boatAfloat) {
+        clearTimeout(boatSinkTimeout);
+        boatSinkTimeout = setTimeout(sinkBoat, 3000);
+      }
+    });
+  }
   
   $('#login-form')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -3480,10 +3610,12 @@ function bind(){
     let item = myMenu().find(m => m.id === b.dataset.add);
     ex ? ex.qty++ : state.cart.push({id: b.dataset.add, qty: 1});
     state.cartOpen = false;
+    state.boatAfloat = true;
     saveSession();
     render();
     const currentQty = ex ? ex.qty : 1;
     toast(`Added ${item ? item.name : 'item'} (${currentQty} in cart)`);
+    triggerBoatPopUp(4500);
   });
 
   $$('[data-customer-qty]').forEach(b => {
@@ -3503,8 +3635,12 @@ function bind(){
         } else {
           toast(`Updated ${item ? item.name : 'item'} (${x.qty} in cart)`);
         }
+        state.boatAfloat = state.cart.length > 0;
         saveSession();
         render();
+        if (state.cart.length > 0) {
+          triggerBoatPopUp(4500);
+        }
       }
     };
   });
@@ -3592,7 +3728,8 @@ function bind(){
     render();
   });
 
-  $('#floating-track-btn')?.addEventListener('click', () => {
+  $('#floating-track-btn')?.addEventListener('click', (e) => {
+    if (e.target.closest('#boat-sink-action')) return;
     state.view = 'confirmation';
     render();
   });
