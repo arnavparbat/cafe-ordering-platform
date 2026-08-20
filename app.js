@@ -1948,16 +1948,11 @@ function getCafeTableGroups() {
                 ? state.customerName
                 : (activeOrders[0]?.customerName || `Guest (Table ${tbl})`)));
 
-      // Previous order batches placed earlier today during this session or previous settled orders today
-      const previousActiveBatchesToday = activeOrders.slice(1).filter(isOrderToday);
-      const previousOrdersToday = [...previousActiveBatchesToday, ...pastOrdersToday];
-
       groups.push({
         table: tbl,
         isVacant: false,
         orders: activeOrders,
         pastOrdersCount: pastOrders.length,
-        previousOrdersToday,
         customerName: resolvedCustomerName,
         hasNew,
         totalItems,
@@ -1972,16 +1967,11 @@ function getCafeTableGroups() {
       });
     } else {
       // Table is currently vacant / ready for next guest
-      const lastPastOrder = pastOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
-      const lastSettledStr = lastPastOrder 
-        ? `Last settled ${formatOrderDate(lastPastOrder)} ${lastPastOrder.time || ''}`
-        : 'Ready for guests';
       groups.push({
         table: tbl,
         isVacant: true,
         orders: [],
         pastOrdersCount: pastOrders.length,
-        previousOrdersToday: pastOrdersToday,
         customerName: 'No active guest',
         hasNew: false,
         totalItems: 0,
@@ -1990,9 +1980,9 @@ function getCafeTableGroups() {
         breakdown: { subtotal: 0, charges: [], totalCharges: 0, total: 0 },
         activeOrdersCount: 0,
         status: 'Available',
-        latestTime: lastSettledStr,
+        latestTime: 'Ready for guests',
         latestTimestamp: resetTime,
-        lastSettledTotal: lastPastOrder?.total || 0,
+        lastSettledTotal: 0,
         resetTime
       });
     }
@@ -2008,8 +1998,6 @@ function getCafeTableGroups() {
 }
 
 function tableSectionView(g, isExpanded) {
-  const hasPrevToday = Array.isArray(g.previousOrdersToday) && g.previousOrdersToday.length > 0;
-
   if (g.isVacant) {
     return `<article class="table-order-card vacant-table ${isExpanded ? 'expanded' : ''}" data-table-card="${g.table}">
       <header class="table-card-head" data-toggle-table="${g.table}">
@@ -2022,18 +2010,17 @@ function tableSectionView(g, isExpanded) {
             <div class="table-title-row">
               <h3 class="table-guest-name" style="color:var(--muted);font-weight:600;">Table ${esc(g.table)} — Ready for Next Guest</h3>
               <span class="status status-vacant">${icon('shield-check')} Ready / Vacant</span>
-              ${hasPrevToday ? `<span class="prev-order-badge" style="font-size:10.5px;padding:2px 7px;">${icon('history')} ${g.previousOrdersToday.length} Previous Order${g.previousOrdersToday.length === 1 ? '' : 's'} Today</span>` : ''}
             </div>
             <div class="table-sub-meta">
-              <span>0 active orders</span>
+              <span>0 ongoing orders</span>
               <span>·</span>
-              <span>${esc(g.latestTime)}</span>
-              ${hasPrevToday ? `<span>·</span><span>Last Settled: ${money(g.previousOrdersToday[0]?.total || 0)}</span>` : `<span>·</span><strong style="color:var(--muted)">Active Bill: ₹0</strong>`}
+              <span>Ready for dining</span>
+              <span>·</span>
+              <strong style="color:var(--muted)">Active Bill: ₹0</strong>
             </div>
           </div>
         </div>
         <div class="table-head-right" style="display:flex;align-items:center;gap:8px;">
-          ${hasPrevToday ? `<button type="button" class="outline btn-print-order-bill" data-print-order="${esc(g.previousOrdersToday[0]?.id)}" style="padding:6px 12px;font-size:11.5px;border-radius:8px;font-weight:700;background:#fff;display:inline-flex;align-items:center;gap:4px;" title="Print Bill Receipt for Previous Order #${esc(g.previousOrdersToday[0]?.id)}">${icon('printer')} Print Bill</button>` : ''}
           <button type="button" class="primary btn-take-order-table" data-pos-table="${esc(g.table)}" style="padding:6px 12px;font-size:11.5px;border-radius:8px;font-weight:700;">${icon('plus-circle')} Take Order</button>
           <button type="button" class="table-expand-btn" data-toggle-table="${g.table}">
             <span>${isExpanded ? 'Hide' : 'Details'}</span>
@@ -2045,51 +2032,14 @@ function tableSectionView(g, isExpanded) {
         <div class="vacant-table-body">
           <div style="font-size:28px;margin-bottom:8px;">🛋️</div>
           <strong style="color:var(--coffee-dark);font-size:15px;">Table ${esc(g.table)} is Clean & Ready for New Customers</strong>
-          <p class="panel-sub" style="margin:6px 0 14px;font-size:12px;">Previous guest's bill has been completely settled offline and closed. Guests can scan the Table ${esc(g.table)} QR code or staff can place an order directly from the counter.</p>
+          <p class="panel-sub" style="margin:6px 0 14px;font-size:12px;">No ongoing orders on Table ${esc(g.table)}. When guests place an order from the table QR or staff enters an order, ongoing batches will appear here in real time.</p>
           <button type="button" class="primary btn-take-order-table" data-pos-table="${esc(g.table)}" style="font-size:12px;padding:9px 18px;border-radius:8px;font-weight:700;">${icon('plus-circle')} Take Order for Table ${esc(g.table)}</button>
         </div>
-        ${hasPrevToday ? `
-          <div class="previous-orders-today-box">
-            <div class="prev-order-head">
-              <div class="prev-order-title-wrap">
-                <span class="prev-order-badge">${icon('history')} Previous Order (Today)</span>
-                <span class="prev-order-time">${g.previousOrdersToday.length} settled ${g.previousOrdersToday.length === 1 ? 'order' : 'orders'} for Table ${esc(g.table)} today</span>
-              </div>
-            </div>
-            ${g.previousOrdersToday.map(ord => `
-              <div class="prev-order-row" style="background:#fff;border:1px solid #ebd9c5;border-radius:8px;padding:12px 14px;margin-top:6px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <strong style="font-size:13px;color:var(--coffee-dark);">Order #${esc(ord.id)}</strong>
-                    <span class="prev-order-time">${icon('clock-3')} ${esc(ord.time || '')} Today</span>
-                    <span class="status ${statusClass(ord.status)}" style="font-size:10.5px;padding:2px 7px;">${esc(ord.status)}</span>
-                  </div>
-                  <button type="button" class="outline btn-print-order-bill" data-print-order="${esc(ord.id)}" style="padding:5px 12px;font-size:11.5px;font-weight:700;background:#fff;display:inline-flex;align-items:center;gap:5px;" title="Print Bill Receipt for Order #${esc(ord.id)}">
-                    ${icon('printer')} Print Bill
-                  </button>
-                </div>
-                <div class="prev-order-items-wrap" style="margin:8px 0;">
-                  ${(ord.items || []).map(itm => `
-                    <span class="prev-item-tag">
-                      <span class="prev-item-qty">${itm.qty}×</span>
-                      <span>${esc(itm.name)}</span>
-                      <small style="color:var(--muted)">(${money(itm.price * itm.qty)})</small>
-                    </span>
-                  `).join('')}
-                </div>
-                <div class="prev-order-meta-foot">
-                  <span>Guest: <b>${esc(ord.customerName || 'Walk-in Guest')}</b></span>
-                  <span>Order Total: <strong class="prev-order-total">${money(ord.total)}</strong></span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
       </div>` : ''}
     </article>`;
   }
 
-  // Active Dining Table Session
+  // Active Dining Table Session (Only ongoing orders)
   const isNewTable = g.hasNew;
   const statusCls = statusClass(g.status);
   const bd = g.breakdown || calculateOrderBreakdown(g.orders.flatMap(o => o.items || []), cafe().id);
@@ -2108,7 +2058,7 @@ function tableSectionView(g, isExpanded) {
             ${isNewTable ? `<span class="table-ring-badge animate-ring" title="New order placed by table">${icon('bell-ring')} <span class="ring-pulse-dot"></span> <b>New Items Added!</b></span>` : ''}
           </div>
           <div class="table-sub-meta">
-            <span>${icon('clipboard-list')} ${g.orders.length} ${g.orders.length === 1 ? 'order' : 'orders'} (${g.totalItems} items)</span>
+            <span>${icon('clipboard-list')} ${g.orders.length} ongoing ${g.orders.length === 1 ? 'order' : 'orders'} (${g.totalItems} items)</span>
             <span>·</span>
             <span>${icon('clock-3')} Latest: ${esc(g.latestTime)}</span>
             <span>·</span>
@@ -2168,43 +2118,6 @@ function tableSectionView(g, isExpanded) {
           </div>`;
         }).join('')}
       </div>
-      ${hasPrevToday ? `
-        <div class="previous-orders-today-box">
-          <div class="prev-order-head">
-            <div class="prev-order-title-wrap">
-              <span class="prev-order-badge">${icon('history')} Previous Orders (Today)</span>
-              <span class="prev-order-time">${g.previousOrdersToday.length} previously ordered batch${g.previousOrdersToday.length === 1 ? '' : 'es'} placed today for Table ${esc(g.table)}</span>
-            </div>
-          </div>
-          ${g.previousOrdersToday.map(ord => `
-            <div class="prev-order-row" style="background:#fff;border:1px solid #ebd9c5;border-radius:8px;padding:12px 14px;margin-top:6px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <strong style="font-size:13px;color:var(--coffee-dark);">Order #${esc(ord.id)}</strong>
-                  <span class="prev-order-time">${icon('clock-3')} ${esc(ord.time || '')} Today</span>
-                  <span class="status ${statusClass(ord.status)}" style="font-size:10.5px;padding:2px 7px;">${esc(ord.status)}</span>
-                </div>
-                <button type="button" class="outline btn-print-order-bill" data-print-order="${esc(ord.id)}" style="padding:5px 12px;font-size:11.5px;font-weight:700;background:#fff;display:inline-flex;align-items:center;gap:5px;" title="Print Bill Receipt for Order #${esc(ord.id)}">
-                  ${icon('printer')} Print Bill
-                </button>
-              </div>
-              <div class="prev-order-items-wrap" style="margin:8px 0;">
-                ${(ord.items || []).map(itm => `
-                  <span class="prev-item-tag">
-                    <span class="prev-item-qty">${itm.qty}×</span>
-                    <span>${esc(itm.name)}</span>
-                    <small style="color:var(--muted)">(${money(itm.price * itm.qty)})</small>
-                  </span>
-                `).join('')}
-              </div>
-              <div class="prev-order-meta-foot">
-                <span>Guest: <b>${esc(ord.customerName || 'Guest')}</b></span>
-                <span>Batch Total: <strong class="prev-order-total">${money(ord.total)}</strong></span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
       <div class="table-bill-settlement-card">
         <div class="bill-summary-left">
           <div class="bill-title-row">
