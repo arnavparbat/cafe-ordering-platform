@@ -39,6 +39,9 @@ const seed = {
       serviceChargeRate: 5,
       serviceChargeEnabled: true,
       customCharges: [],
+      upiId: 'eatngreet.parkstreet@upi',
+      upiName: "Eat 'N Greet Park Street",
+      upiEnabled: true,
       status: 'Active',
       wifi: { ssid: 'EatNGreet_ParkStreet', password: 'Welcome@ParkStreet' },
       opensAt: '08:00',
@@ -61,6 +64,9 @@ const seed = {
       serviceChargeRate: 5,
       serviceChargeEnabled: true,
       customCharges: [],
+      upiId: 'eatngreet.saltlake@upi',
+      upiName: "Eat 'N Greet Salt Lake",
+      upiEnabled: true,
       status: 'Active',
       wifi: { ssid: 'EatNGreet_SaltLake', password: 'Coffee@SaltLake' },
       opensAt: '09:00',
@@ -83,6 +89,9 @@ const seed = {
       serviceChargeRate: 5,
       serviceChargeEnabled: true,
       customCharges: [],
+      upiId: 'eatngreet.ballygunge@upi',
+      upiName: "Eat 'N Greet Ballygunge",
+      upiEnabled: true,
       status: 'Active',
       wifi: { ssid: 'EatNGreet_Ballygunge', password: 'Aroma@Ballygunge' },
       opensAt: '08:30',
@@ -183,6 +192,9 @@ db.cafes.forEach((c, i) => {
   c.serviceChargeEnabled = c.serviceChargeEnabled !== undefined ? !!c.serviceChargeEnabled : true;
   c.gstin ||= (i === 0 ? '19AAACH7409R1ZZ' : i === 1 ? '19AABCS8821Q1Z8' : '19AACCE3312M1Z2');
   c.customCharges ||= [];
+  c.upiId ||= (i === 0 ? 'eatngreet.parkstreet@upi' : i === 1 ? 'eatngreet.saltlake@upi' : 'eatngreet.ballygunge@upi');
+  c.upiName ||= c.name;
+  c.upiEnabled = c.upiEnabled !== undefined ? !!c.upiEnabled : true;
 });
 localStorage.setItem('juniper-db', JSON.stringify(db));
 
@@ -508,6 +520,12 @@ function printBillWindow(billData) {
   if (!win) return alert('Please allow popups to print bills.');
 
   const totalWords = numberToWords(breakdown.total);
+  const upiId = (c.upiId || '').trim();
+  const upiName = (c.upiName || c.name || '').trim();
+  const isUpiActive = c.upiEnabled !== false && !!upiId;
+  const billTotal = breakdown.total;
+  const upiPayUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiName || c.name)}&am=${billTotal}&cu=INR&tn=${encodeURIComponent(`Bill ${billNumber} Table ${table}`)}`;
+  const upiQrImageUrl = getQrServiceUrl(upiPayUrl, 260);
 
   win.document.write(`<!DOCTYPE html>
 <html>
@@ -654,6 +672,66 @@ function printBillWindow(billData) {
       text-align: left;
       font-size: 11px;
     }
+    .upi-bill-box {
+      margin: 14px 0 12px;
+      padding: 12px 10px;
+      background: #faf7f2;
+      border: 1.5px dashed #c49a6c;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .upi-bill-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      background: #281811;
+      color: #fff;
+      padding: 3px 12px;
+      border-radius: 12px;
+      margin-bottom: 6px;
+    }
+    .upi-qr-wrapper {
+      display: flex;
+      justify-content: center;
+      margin: 4px 0 6px;
+    }
+    .upi-qr-img {
+      width: 130px;
+      height: 130px;
+      background: #fff;
+      padding: 4px;
+      border: 1px solid #d5c8b8;
+      border-radius: 8px;
+      display: block;
+    }
+    .upi-vpa-text {
+      font-size: 12px;
+      color: #281811;
+      margin: 4px 0 1px;
+    }
+    .upi-payee-text {
+      font-size: 11px;
+      color: #6a584c;
+      margin: 0 0 4px;
+    }
+    .upi-amt-tag {
+      font-size: 11.5px;
+      color: #1a5e37;
+      font-weight: 700;
+      background: #e8f5ec;
+      padding: 2px 8px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+    .upi-accepted-apps {
+      font-size: 9.5px;
+      font-weight: 600;
+      color: #8c786a;
+      letter-spacing: 0.2px;
+    }
     .barcode-sim {
       font-family: 'Space Mono', monospace;
       letter-spacing: 4px;
@@ -745,6 +823,19 @@ function printBillWindow(billData) {
 
       ${totalWords ? `<div class="words-note">${esc(totalWords)}</div>` : ''}
 
+      ${isUpiActive ? `
+        <div class="upi-bill-box">
+          <div><span class="upi-bill-badge">⚡ Scan & Pay via UPI</span></div>
+          <div class="upi-qr-wrapper">
+            <img class="upi-qr-img" src="${upiQrImageUrl}" alt="UPI Payment QR">
+          </div>
+          <div class="upi-vpa-text">UPI ID: <strong>${esc(upiId)}</strong></div>
+          ${upiName ? `<div class="upi-payee-text">Payee: <strong>${esc(upiName)}</strong></div>` : ''}
+          <div><span class="upi-amt-tag">Amount to Pay: ₹${billTotal}</span></div>
+          <div class="upi-accepted-apps">Scan with GPay • PhonePe • Paytm • BHIM • Any UPI App</div>
+        </div>
+      ` : ''}
+
       <footer class="bill-footer">
         <div style="font-weight:600;color:#281811;margin-bottom:6px;">Payment Mode: ${esc(paymentStatus)}</div>
         ${c.wifi ? `<div class="wifi-pill"><b>📶 Guest Wi-Fi:</b> ${esc(c.wifi.ssid)}<br><b>🔑 Password:</b> ${esc(c.wifi.password)}</div>` : ''}
@@ -755,7 +846,10 @@ function printBillWindow(billData) {
     </div>
   </div>
   <script>
-    setTimeout(() => window.print(), 400);
+    window.addEventListener('load', () => {
+      setTimeout(() => window.print(), 500);
+    });
+    setTimeout(() => window.print(), 800);
   </script>
 </body>
 </html>`);
@@ -1711,20 +1805,39 @@ function cafesPage(){
   let q = (state.cafeSearchQuery || '').toLowerCase().trim();
   let status = state.cafeStatusFilter || 'All statuses';
   let filteredCafes = db.cafes.filter(c => {
-    const text = (c.name + ' ' + c.id + ' ' + (c.username || '') + ' ' + (c.address || '')).toLowerCase();
+    const text = (c.name + ' ' + c.id + ' ' + (c.username || '') + ' ' + (c.address || '') + ' ' + (c.upiId || '')).toLowerCase();
     const matchQ = !q || text.includes(q);
     const matchStatus = status === 'All statuses' || c.status === status;
     return matchQ && matchStatus;
   });
-  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes" value="${esc(state.cafeSearchQuery || '')}"></div><select class="select" id="cafe-status-filter"><option ${status==='All statuses'?'selected':''}>All statuses</option><option ${status==='Active'?'selected':''}>Active</option><option ${status==='Inactive'?'selected':''}>Inactive</option></select></div><span class="panel-sub">${filteredCafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>Charges & Taxes</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${filteredCafes.map(c=>{
+  return `<section class="panel"><div class="section-bar"><div class="filter-row"><div class="search-wrap">${icon('search')}<input class="search" id="cafe-search" placeholder="Search cafes & UPI IDs" value="${esc(state.cafeSearchQuery || '')}"></div><select class="select" id="cafe-status-filter"><option ${status==='All statuses'?'selected':''}>All statuses</option><option ${status==='Active'?'selected':''}>Active</option><option ${status==='Inactive'?'selected':''}>Inactive</option></select></div><span class="panel-sub">${filteredCafes.length} registered cafés</span></div><div style="overflow:auto"><table class="table"><thead><tr><th>Café</th><th>Café ID</th><th>UPI Payment QR</th><th>Charges & Taxes</th><th>Ordering Link</th><th>QR Standees</th><th>Security Key</th><th>Status</th><th>Actions</th></tr></thead><tbody>${filteredCafes.map(c=>{
     const gstRate = c.gstRate !== undefined ? Number(c.gstRate) : 5;
     const gstEnabled = c.gstEnabled !== undefined ? !!c.gstEnabled : true;
     const scRate = c.serviceChargeRate !== undefined ? Number(c.serviceChargeRate) : 5;
     const scEnabled = c.serviceChargeEnabled !== undefined ? !!c.serviceChargeEnabled : true;
     const customCount = Array.isArray(c.customCharges) ? c.customCharges.filter(x => x && x.enabled).length : 0;
+    const upiId = c.upiId || `${(c.slug || c.username || 'cafe').toLowerCase()}@upi`;
+    const isUpiOn = c.upiEnabled !== false && !!c.upiId;
+
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:11px"><img class="cafe-logo-sm" src="${c.image}"><div><div class="cell-title">${esc(c.name)}</div><div class="cell-sub">@${esc(c.username)} · ${esc(c.address)}</div></div></div></td>
       <td><b>${esc(c.id)}</b></td>
+      <td>
+        <div class="cafe-upi-col-cell">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px;">
+            ${isUpiOn ? `
+              <span class="charge-pill upi" title="UPI Active: ${esc(upiId)}">
+                ${icon('qr-code')} ${esc(upiId)}
+              </span>
+            ` : `
+              <span class="charge-pill off">UPI Off</span>
+            `}
+          </div>
+          <button type="button" class="outline edit-cafe-upi" data-cafe="${c.id}" style="padding:4px 9px;font-size:11px;display:inline-flex;align-items:center;gap:4px;border-radius:6px;width:max-content;" title="Configure UPI payment QR for customer bills">
+            ${icon('edit-3')} Change UPI ID
+          </button>
+        </div>
+      </td>
       <td>
         <div class="cafe-charges-col-cell">
           <div class="charges-pills-wrap">
@@ -2817,6 +2930,39 @@ function profilePage(){
         </div>
       </div>
 
+      <div class="profile-billing-section" style="margin-top:20px;padding-top:16px;border-top:1px dashed var(--line);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">
+          <div>
+            <h3 style="font-family:var(--serif);font-size:17px;color:var(--coffee-dark);margin:0 0 4px;display:flex;align-items:center;gap:8px;">
+              ${icon('qr-code')} UPI Payment QR Code on Printed Bills
+            </h3>
+            <p class="panel-sub" style="margin:0;font-size:12px;">Printed directly on customer bills and receipts so guests can scan with GPay, PhonePe, Paytm or BHIM to pay offline.</p>
+          </div>
+          <button type="button" class="outline edit-cafe-upi" data-cafe="${c.id}" style="padding:5px 11px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;">
+            ${icon('eye')} Live Bill QR Studio
+          </button>
+        </div>
+
+        <div class="settings-grid">
+          <div class="field">
+            <label>Business UPI ID / VPA</label>
+            <input name="upiId" required placeholder="e.g. eatngreet@okhdfcbank" value="${esc(c.upiId || '')}">
+            <small style="font-size:11px;color:var(--muted)">Your merchant UPI address that receives bill payments.</small>
+          </div>
+          <div class="field">
+            <label>Payee / Merchant Display Name</label>
+            <input name="upiName" placeholder="e.g. Eat 'N Greet" value="${esc(c.upiName || c.name || '')}">
+            <small style="font-size:11px;color:var(--muted)">Account name shown to customer in their UPI app.</small>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:8px;">
+          <label class="toggle-control-label" style="font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+            <input name="upiEnabled" type="checkbox" ${c.upiEnabled !== false ? 'checked' : ''}> Print Scan-to-Pay UPI QR on Receipts & Bills
+          </label>
+        </div>
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;flex-wrap:wrap;gap:10px;">
         <button class="primary" type="submit">Save profile & charges</button>
         <button type="button" class="outline edit-cafe-charges" data-cafe="${c.id}" style="font-size:12px;padding:8px 14px;">
@@ -3021,6 +3167,7 @@ function bind(){
   $('#add-cafe')?.addEventListener('click', () => cafeModal());
   $$('.edit-cafe').forEach(b => b.onclick = () => cafeModal(db.cafes.find(c => c.id === b.dataset.cafe)));
   $$('.edit-cafe-charges').forEach(b => b.onclick = () => cafeChargesModal(db.cafes.find(c => c.id === b.dataset.cafe) || cafe()));
+  $$('.edit-cafe-upi').forEach(b => b.onclick = () => cafeUpiModal(db.cafes.find(c => c.id === b.dataset.cafe) || cafe()));
   $$('.status-toggle').forEach(b => b.onclick = () => {
     let c = db.cafes.find(c => c.id === b.dataset.cafe);
     c.status = c.status === 'Active' ? 'Inactive' : 'Active';
@@ -3240,10 +3387,13 @@ function bind(){
     data.gstEnabled = !!f.get('gstEnabled');
     data.serviceChargeRate = parseFloat(data.serviceChargeRate) || 0;
     data.serviceChargeEnabled = !!f.get('serviceChargeEnabled');
+    data.upiId = (f.get('upiId') || '').trim();
+    data.upiName = (f.get('upiName') || '').trim();
+    data.upiEnabled = !!f.get('upiEnabled');
     Object.assign(cafe(), data);
     save();
     render();
-    toast('Café profile & billing charges updated');
+    toast('Café profile, UPI & billing charges updated');
   });
 
   // QR Studio specific binds
@@ -3824,9 +3974,95 @@ function cafeChargesModal(cafeObj){
   syncAndSimulate();
 }
 
+function cafeUpiModal(c) {
+  if (!c) return;
+  const currentUpi = c.upiId || `${(c.slug || c.username || 'cafe').toLowerCase()}@upi`;
+  const currentName = c.upiName || c.name || '';
+  const isEnabled = c.upiEnabled !== false;
+  const sampleUrl = `upi://pay?pa=${encodeURIComponent(currentUpi)}&pn=${encodeURIComponent(currentName || c.name)}&cu=INR`;
+  const sampleQrUrl = getQrServiceUrl(sampleUrl, 220);
+
+  modal(`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <h2 style="margin:0;font-size:20px;font-family:var(--serif);color:var(--coffee-dark);">${icon('qr-code')} Configure UPI Payment QR</h2>
+        <p class="panel-sub" style="margin:4px 0 0;font-size:12px;">Dynamic Scan-to-Pay QR printed on customer bills for <strong>${esc(c.name)}</strong></p>
+      </div>
+    </div>
+    
+    <form id="cafe-upi-form">
+      <div style="display:grid;grid-template-columns:1fr 140px;gap:18px;align-items:start;margin-top:14px;">
+        <div>
+          <div class="field">
+            <label>Business UPI ID / VPA</label>
+            <input id="input-modal-upi-id" name="upiId" required placeholder="e.g. eatngreet@okhdfcbank" value="${esc(currentUpi)}">
+            <small style="font-size:11px;color:var(--muted)">Enter GPay, PhonePe, Paytm, BHIM or Bank VPA.</small>
+          </div>
+          
+          <div class="field">
+            <label>Payee / Merchant Display Name</label>
+            <input id="input-modal-upi-name" name="upiName" required placeholder="e.g. Eat 'N Greet" value="${esc(currentName)}">
+            <small style="font-size:11px;color:var(--muted)">Merchant name shown in customer's UPI app.</small>
+          </div>
+
+          <div class="field" style="margin-top:10px;">
+            <label class="toggle-control-label" style="font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" name="upiEnabled" id="input-modal-upi-enabled" ${isEnabled ? 'checked' : ''}>
+              Enable Dynamic UPI QR on Printed Bills
+            </label>
+          </div>
+        </div>
+
+        <div style="text-align:center;background:#faf6f0;padding:12px;border:1.5px dashed #d5c8b8;border-radius:10px;">
+          <small style="font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--coffee);display:block;margin-bottom:6px;">Live Bill QR</small>
+          <img id="modal-upi-qr-preview" src="${sampleQrUrl}" alt="UPI Preview" style="width:110px;height:110px;display:block;margin:0 auto;border-radius:6px;background:#fff;border:1px solid #e2d7c9;">
+          <span style="font-size:10px;color:var(--muted);display:block;margin-top:4px;">GPay • PhonePe • Paytm</span>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="outline modal-close">Cancel</button>
+        <button type="submit" class="primary">Save UPI QR Settings</button>
+      </div>
+    </form>
+  `);
+
+  const closeBtn = $('.modal-close');
+  if(closeBtn) closeBtn.onclick = closeModal;
+
+  const upiInput = $('#input-modal-upi-id');
+  const nameInput = $('#input-modal-upi-name');
+  const qrImg = $('#modal-upi-qr-preview');
+
+  const updatePreview = () => {
+    const uId = (upiInput?.value || '').trim() || 'example@upi';
+    const uNm = (nameInput?.value || '').trim() || c.name;
+    const testUrl = `upi://pay?pa=${encodeURIComponent(uId)}&pn=${encodeURIComponent(uNm)}&cu=INR`;
+    if (qrImg) qrImg.src = getQrServiceUrl(testUrl, 220);
+  };
+
+  upiInput?.addEventListener('input', updatePreview);
+  nameInput?.addEventListener('input', updatePreview);
+
+  const form = $('#cafe-upi-form');
+  if(form){
+    form.onsubmit = e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      c.upiId = (f.get('upiId') || '').trim();
+      c.upiName = (f.get('upiName') || '').trim();
+      c.upiEnabled = !!f.get('upiEnabled');
+      save();
+      closeModal();
+      render();
+      toast(`UPI payment QR updated for ${c.name}`);
+    };
+  }
+}
+
 function cafeModal(edit){
   let isEdit = !!edit;
-  modal(`<h2>${isEdit ? 'Edit café' : 'Create a café account'}</h2><form id="cafe-form"><div class="field"><label>Café name</label><input name="name" required value="${esc(edit?.name || '')}"></div><div class="settings-grid"><div class="field"><label>Username / Slug</label><input name="username" required value="${esc(edit?.username || '')}"></div><div class="field"><label>Password</label><input name="password" required value="${esc(edit?.password || '')}"></div></div><div class="field"><label>Contact</label><input name="contact" required value="${esc(edit?.contact || '')}"></div><div class="field"><label>Address</label><input name="address" required value="${esc(edit?.address || '')}"></div>${isEdit ? `<div class="field"><label>Anti-Tamper Security Key (Admin Only)</label><div style="display:flex;gap:8px;align-items:center"><input id="modal-key-display" value="${esc(edit.qrSecret || '')}" readonly style="background:#f5f3ef;font-family:monospace;font-size:11px;"><button type="button" class="outline" id="modal-btn-rotate-key" style="white-space:nowrap;padding:6px 12px;font-size:11px;">${icon('refresh-cw')} Rotate Key</button></div><small style="font-size:11px;color:var(--muted)">Rotating this key will invalidate older physical QR standees for this café.</small></div><div style="margin-top:12px;"><button type="button" class="outline edit-cafe-charges" data-cafe="${edit.id}" style="font-size:11.5px;padding:6px 12px;font-weight:700;">${icon('settings-2')} Configure GST, Service Charges & Taxes</button></div>` : ''}<div class="modal-actions"><button type="button" class="outline modal-close">Cancel</button>${isEdit ? `<button type="button" class="danger" id="delete-cafe">Delete</button>` : ''}<button class="primary">${isEdit ? 'Save changes' : 'Create café'}</button></div></form>`);
+  modal(`<h2>${isEdit ? 'Edit café' : 'Create a café account'}</h2><form id="cafe-form"><div class="field"><label>Café name</label><input name="name" required value="${esc(edit?.name || '')}"></div><div class="settings-grid"><div class="field"><label>Username / Slug</label><input name="username" required value="${esc(edit?.username || '')}"></div><div class="field"><label>Password</label><input name="password" required value="${esc(edit?.password || '')}"></div></div><div class="field"><label>Contact</label><input name="contact" required value="${esc(edit?.contact || '')}"></div><div class="field"><label>Address</label><input name="address" required value="${esc(edit?.address || '')}"></div><div class="settings-grid"><div class="field"><label>UPI ID (for Printed Bill QR)</label><input name="upiId" placeholder="e.g. eatngreet@okhdfcbank" value="${esc(edit?.upiId || '')}"></div><div class="field"><label>UPI Payee / Merchant Name</label><input name="upiName" placeholder="e.g. Eat 'N Greet" value="${esc(edit?.upiName || edit?.name || '')}"></div></div><div class="field" style="margin-top:4px;"><label class="toggle-control-label" style="font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer;"><input name="upiEnabled" type="checkbox" ${edit?.upiEnabled !== false ? 'checked' : ''}> Print UPI Payment QR on Bills</label></div>${isEdit ? `<div class="field"><label>Anti-Tamper Security Key (Admin Only)</label><div style="display:flex;gap:8px;align-items:center"><input id="modal-key-display" value="${esc(edit.qrSecret || '')}" readonly style="background:#f5f3ef;font-family:monospace;font-size:11px;"><button type="button" class="outline" id="modal-btn-rotate-key" style="white-space:nowrap;padding:6px 12px;font-size:11px;">${icon('refresh-cw')} Rotate Key</button></div><small style="font-size:11px;color:var(--muted)">Rotating this key will invalidate older physical QR standees for this café.</small></div><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="outline edit-cafe-upi" data-cafe="${edit.id}" style="font-size:11.5px;padding:6px 12px;font-weight:700;">${icon('qr-code')} Configure UPI QR</button><button type="button" class="outline edit-cafe-charges" data-cafe="${edit.id}" style="font-size:11.5px;padding:6px 12px;font-weight:700;">${icon('settings-2')} Configure GST & Charges</button></div>` : ''}<div class="modal-actions"><button type="button" class="outline modal-close">Cancel</button>${isEdit ? `<button type="button" class="danger" id="delete-cafe">Delete</button>` : ''}<button class="primary">${isEdit ? 'Save changes' : 'Create café'}</button></div></form>`);
   const closeBtn = $('.modal-close');
   if(closeBtn) closeBtn.onclick = closeModal;
 
@@ -3840,6 +4076,11 @@ function cafeModal(edit){
     }
   });
 
+  $('.edit-cafe-upi')?.addEventListener('click', () => {
+    closeModal();
+    cafeUpiModal(edit);
+  });
+
   $('.edit-cafe-charges')?.addEventListener('click', () => {
     closeModal();
     cafeChargesModal(edit);
@@ -3850,6 +4091,9 @@ function cafeModal(edit){
     form.onsubmit = e => {
       e.preventDefault();
       let v = Object.fromEntries(new FormData(e.target));
+      v.upiEnabled = !!new FormData(e.target).get('upiEnabled');
+      v.upiId = (v.upiId || '').trim();
+      v.upiName = (v.upiName || '').trim();
       if(isEdit) Object.assign(edit, v);
       else {
         let id = `CAF-${String(db.cafes.length + 1).padStart(3, '0')}`;
@@ -3865,6 +4109,9 @@ function cafeModal(edit){
           serviceChargeEnabled: true,
           gstin: '',
           customCharges: [],
+          upiId: v.upiId || `${v.username.toLowerCase()}@upi`,
+          upiName: v.upiName || v.name,
+          upiEnabled: v.upiEnabled,
           wifi: { ssid: `${v.name.replace(/\s+/g,'_')}_Guest`, password: 'Welcome@123' },
           description: 'A beautiful local café.',
           image: cafe().image
