@@ -513,11 +513,19 @@ function getBillData(type, targetId) {
   };
 }
 
+let printWindowLock = false;
 function printBillWindow(billData) {
   if (!billData) return;
+  if (printWindowLock) return;
+  printWindowLock = true;
+  setTimeout(() => { printWindowLock = false; }, 1200);
+
   const { cafe: c, table, guestName, billNumber, dateTimeStr, orderBatches, items, breakdown, paymentStatus } = billData;
   const win = window.open('', '_blank', 'width=460,height=800');
-  if (!win) return alert('Please allow popups to print bills.');
+  if (!win) {
+    printWindowLock = false;
+    return alert('Please allow popups to print bills.');
+  }
 
   const totalWords = numberToWords(breakdown.total);
   const upiId = (c.upiId || '').trim();
@@ -846,10 +854,18 @@ function printBillWindow(billData) {
     </div>
   </div>
   <script>
-    window.addEventListener('load', () => {
-      setTimeout(() => window.print(), 500);
+    var hasExecutedPrint = false;
+    function triggerSinglePrint() {
+      if (hasExecutedPrint) return;
+      hasExecutedPrint = true;
+      try {
+        window.print();
+      } catch(err) {}
+    }
+    window.addEventListener('load', function() {
+      setTimeout(triggerSinglePrint, 350);
     });
-    setTimeout(() => window.print(), 800);
+    setTimeout(triggerSinglePrint, 700);
   </script>
 </body>
 </html>`);
