@@ -3293,3 +3293,17 @@ a { text-decoration: none; color: inherit; }
   font-weight: 700;
   color: #1b683f;
 }
+
+.admin-settings-panel {
+  max-width: 760px;
+}
+
+.admin-settings-panel input {
+  font-size: 13.5px;
+}
+
+@media (max-width: 640px) {
+  .admin-settings-panel .settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
