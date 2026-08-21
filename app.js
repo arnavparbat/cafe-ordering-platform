@@ -1659,28 +1659,30 @@ function render(){
   const app = $('#app');
   if(!app) return;
 
-  // Capture active element focus & cursor selection position before DOM update
+  // Preserve window scroll position across renders when staying in the same view/page/category
+  const prevView = state.view;
+  const prevPage = state.page;
+  const prevCategory = state.customerCategory;
+  const scrollX = window.scrollX || window.pageXOffset || 0;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+
+  // Only capture focus & cursor selection position for editable input/textarea fields with an ID or name
+  // This prevents buttons/steppers/cards from stealing focus and causing unwanted mobile viewport jumps/scrolling
   const activeEl = document.activeElement;
-  let activeId = (activeEl && activeEl !== document.body) ? activeEl.id : null;
-  let activeName = (!activeId && activeEl && activeEl.name) ? activeEl.name : null;
-  let activeSelector = null;
+  const isTextInput = activeEl && (
+    activeEl.tagName === 'TEXTAREA' ||
+    (activeEl.tagName === 'INPUT' && !['button', 'submit', 'reset', 'checkbox', 'radio', 'file', 'image'].includes(activeEl.type))
+  );
+  let activeId = (isTextInput && activeEl.id) ? activeEl.id : null;
+  let activeName = (isTextInput && !activeId && activeEl.name) ? activeEl.name : null;
   let selStart = null;
   let selEnd = null;
 
-  if (activeEl && activeEl !== document.body) {
-    if (!activeId && !activeName && activeEl.className) {
-      const tag = activeEl.tagName.toLowerCase();
-      const firstClass = (activeEl.classList && activeEl.classList[0]) ? activeEl.classList[0] : '';
-      if (firstClass) {
-        activeSelector = `${tag}.${firstClass}`;
-      }
-    }
-    if ('selectionStart' in activeEl) {
-      try {
-        selStart = activeEl.selectionStart;
-        selEnd = activeEl.selectionEnd;
-      } catch (_) {}
-    }
+  if (isTextInput && ('selectionStart' in activeEl)) {
+    try {
+      selStart = activeEl.selectionStart;
+      selEnd = activeEl.selectionEnd;
+    } catch (_) {}
   }
 
   if (state.view === 'login') {
@@ -1716,26 +1718,21 @@ function render(){
     }, 4200);
   }
 
-  // Restore focus and cursor selection position after re-rendering
-  if (activeId || activeName || activeSelector) {
-    let target = null;
-    if (activeId) {
-      target = document.getElementById(activeId);
-    }
-    if (!target && activeName) {
-      const safeName = activeName.replace(/"/g, '\\"');
-      target = document.querySelector(`[name="${safeName}"]`);
-    }
-    if (!target && activeSelector) {
-      target = document.querySelector(activeSelector);
-    }
+  // Restore scroll position when re-rendering the same view so mobile screen doesn't jump
+  if (state.view === prevView && state.page === prevPage && state.customerCategory === prevCategory) {
+    window.scrollTo(scrollX, scrollY);
+  }
+
+  // Restore focus and cursor selection position safely with preventScroll for active text inputs only
+  if (activeId || activeName) {
+    let target = activeId ? document.getElementById(activeId) : document.querySelector(`[name="${activeName.replace(/"/g, '\\"')}"]`);
     if (target && typeof target.focus === 'function') {
-      target.focus();
-      if (selStart !== null && selEnd !== null && typeof target.setSelectionRange === 'function') {
-        try {
+      try {
+        target.focus({ preventScroll: true });
+        if (selStart !== null && selEnd !== null && typeof target.setSelectionRange === 'function') {
           target.setSelectionRange(selStart, selEnd);
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
   }
 }
@@ -3068,7 +3065,7 @@ function customerView(){
   const floatingMarkup = showFloatingArea ? `
     <aside class="mobile-cart-bar-wrap">
       <!-- Mini Peek Float Pill (Shows when boat is sunk) -->
-      <button class="boat-peek-pill ${state.boatAfloat ? 'peek-hidden' : ''}" id="boat-peek-trigger" aria-label="Show Order Details" title="Tap to show order / bill summary">
+      <button type="button" class="boat-peek-pill ${state.boatAfloat ? 'peek-hidden' : ''}" id="boat-peek-trigger" aria-label="Show Order Details" title="Tap to show order / bill summary">
         ${hasCart ? `
           <span class="peek-icon-wrap">${icon('shopping-bag')}</span>
           <span class="peek-text"><b>${cartCount}</b> ${cartCount === 1 ? 'item' : 'items'} · <b>${money(cartSubtotal)}</b></span>
@@ -3109,7 +3106,7 @@ function customerView(){
     </aside>
   ` : '';
 
-  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>{
+  return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button type="button" class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button type="button" class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button type="button" class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button type="button" class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button type="button" class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button type="button" class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button type="button" class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>{
     const inCart = state.cart.find(x => x.id === m.id);
     const inCartQty = inCart ? inCart.qty : 0;
     return `<article class="customer-card ${inCartQty > 0 ? 'in-cart' : ''}">
@@ -3603,12 +3600,14 @@ function bind(){
     });
   }
 
-  $$('.customer-cat').forEach(b => b.onclick = () => {
+  $$('.customer-cat').forEach(b => b.onclick = (e) => {
+    e.preventDefault();
     state.customerCategory = b.dataset.cat;
     render();
   });
 
   $$('[data-add]').forEach(b => b.onclick = (e) => {
+    e.preventDefault();
     e.stopPropagation();
     let ex = state.cart.find(x => x.id === b.dataset.add);
     ex ? ex.qty++ : state.cart.push({id: b.dataset.add, qty: 1});
@@ -3621,6 +3620,7 @@ function bind(){
 
   $$('[data-customer-qty]').forEach(b => {
     b.onclick = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       const itemId = b.dataset.customerQty;
       const change = parseInt(b.dataset.change, 10) || 0;
