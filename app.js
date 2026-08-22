@@ -4188,7 +4188,7 @@ function bind(){
     });
   }
 
-  $('.customer-cat').forEach(b => b.onclick = (e) => {
+  $$('.customer-cat').forEach(b => b.onclick = (e) => {
     e.preventDefault();
     const cat = b.dataset.cat;
     if (state.customerCategory !== cat) {
@@ -4199,7 +4199,7 @@ function bind(){
   });
 
   // Standard items without variants
-  $('[data-add]').forEach(b => b.onclick = (e) => {
+  $$('[data-add]').forEach(b => b.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     const itemId = b.dataset.add;
@@ -4226,7 +4226,7 @@ function bind(){
   });
 
   // Variant / multi-size item addition (+ Add for Small, Large, Protein options)
-  $('[data-add-variant]').forEach(b => b.onclick = (e) => {
+  $$('[data-add-variant]').forEach(b => b.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     const itemId = b.dataset.addVariant;
@@ -4257,7 +4257,7 @@ function bind(){
   });
 
   // Standard item quantity steppers (+ / -)
-  $('[data-customer-qty]').forEach(b => {
+  $$('[data-customer-qty]').forEach(b => {
     b.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -4296,7 +4296,7 @@ function bind(){
   });
 
   // Variant quantity steppers (+ / -)
-  $('[data-customer-variant-qty]').forEach(b => {
+  $$('[data-customer-variant-qty]').forEach(b => {
     b.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
