@@ -4198,11 +4198,26 @@ function bind(){
     render();
   });
 
-  $$('[data-add]').forEach(b => b.onclick = (e) => {
+  // Standard items without variants
+  $('[data-add]').forEach(b => b.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    let ex = state.cart.find(x => x.id === b.dataset.add);
-    ex ? ex.qty++ : state.cart.push({id: b.dataset.add, qty: 1});
+    const itemId = b.dataset.add;
+    const m = myMenu().find(item => item.id === itemId);
+    if (!m) return;
+    let ex = state.cart.find(x => x.id === itemId);
+    if (ex) {
+      ex.qty++;
+    } else {
+      state.cart.push({
+        id: itemId,
+        baseId: itemId,
+        name: m.name,
+        price: Number(m.price) || 0,
+        image: m.image,
+        qty: 1
+      });
+    }
     state.cartOpen = false;
     state.boatAfloat = true;
     saveSession();
@@ -4210,17 +4225,106 @@ function bind(){
     triggerBoatPopUp(4500);
   });
 
-  $$('[data-customer-qty]').forEach(b => {
+  // Variant / multi-size item addition (+ Add for Small, Large, Protein options)
+  $('[data-add-variant]').forEach(b => b.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const itemId = b.dataset.addVariant;
+    const vIdx = parseInt(b.dataset.variantIdx, 10);
+    const m = myMenu().find(item => item.id === itemId);
+    if (!m || !m.variants || !m.variants[vIdx]) return;
+    const v = m.variants[vIdx];
+    const cartId = `${m.id}_v_${vIdx}`;
+    let ex = state.cart.find(x => x.id === cartId || (x.baseId === m.id && x.variant === v.name));
+    if (ex) {
+      ex.qty++;
+    } else {
+      state.cart.push({
+        id: cartId,
+        baseId: m.id,
+        name: `${m.name} (${v.name})`,
+        variant: v.name,
+        price: Number(v.price) || 0,
+        image: m.image,
+        qty: 1
+      });
+    }
+    state.cartOpen = false;
+    state.boatAfloat = true;
+    saveSession();
+    render();
+    triggerBoatPopUp(4500);
+  });
+
+  // Standard item quantity steppers (+ / -)
+  $('[data-customer-qty]').forEach(b => {
     b.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
       const itemId = b.dataset.customerQty;
       const change = parseInt(b.dataset.change, 10) || 0;
-      let x = state.cart.find(x => x.id === itemId);
+      let x = state.cart.find(x => x.id === itemId || x.baseId === itemId);
       if (x) {
         x.qty += change;
         if (x.qty <= 0) {
-          state.cart = state.cart.filter(i => i.id !== itemId);
+          state.cart = state.cart.filter(i => i.id !== x.id);
+        }
+        state.boatAfloat = state.cart.length > 0;
+        saveSession();
+        render();
+        if (state.cart.length > 0) {
+          triggerBoatPopUp(4500);
+        }
+      } else if (change > 0) {
+        const m = myMenu().find(item => item.id === itemId);
+        if (m) {
+          state.cart.push({
+            id: itemId,
+            baseId: itemId,
+            name: m.name,
+            price: Number(m.price) || 0,
+            image: m.image,
+            qty: 1
+          });
+          state.boatAfloat = true;
+          saveSession();
+          render();
+          triggerBoatPopUp(4500);
+        }
+      }
+    };
+  });
+
+  // Variant quantity steppers (+ / -)
+  $('[data-customer-variant-qty]').forEach(b => {
+    b.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const itemId = b.dataset.customerVariantQty;
+      const vIdx = parseInt(b.dataset.variantIdx, 10);
+      const change = parseInt(b.dataset.change, 10) || 0;
+      const m = myMenu().find(item => item.id === itemId);
+      const v = m?.variants?.[vIdx];
+      const cartId = `${itemId}_v_${vIdx}`;
+      let x = state.cart.find(item => item.id === cartId || (item.baseId === itemId && v && item.variant === v.name));
+      if (!x && change > 0 && v && m) {
+        state.cart.push({
+          id: cartId,
+          baseId: m.id,
+          name: `${m.name} (${v.name})`,
+          variant: v.name,
+          price: Number(v.price) || 0,
+          image: m.image,
+          qty: 1
+        });
+        state.boatAfloat = true;
+        saveSession();
+        render();
+        triggerBoatPopUp(4500);
+      } else if (x) {
+        x.qty += change;
+        if (x.qty <= 0) {
+          state.cart = state.cart.filter(i => i.id !== x.id);
         }
         state.boatAfloat = state.cart.length > 0;
         saveSession();
@@ -5016,6 +5120,9 @@ async function placeOrder(){
     render();
     return;
   }
+  if (!state.cart || !state.cart.length) {
+    return toast('Your cart is empty. Please add items to place an order.');
+  }
   let table = state.table;
   let customerName = ($('#customer-name')?.value || state.customerName || (state.table ? getActiveTableGuestName(state.table, cafe().id) : '') || '').trim();
   if(!customerName) return toast('Please enter your name');
@@ -5024,14 +5131,18 @@ async function placeOrder(){
 
   let items = state.cart.map(x => {
     let base = myMenu().find(m => m.id === (x.baseId || x.id));
+    const itemName = x.variant ? `${base?.name || x.name.split(' (')[0]} (${x.variant})` : (x.name || base?.name || 'Item');
+    const itemPrice = x.price !== undefined ? Number(x.price) : (Number(base?.price) || 0);
     return {
-      name: x.variant ? `${base?.name || x.name} (${x.variant})` : (base?.name || x.name),
-      qty: x.qty,
-      price: x.price !== undefined ? x.price : (base?.price || 0),
+      id: x.baseId || x.id,
+      name: itemName,
+      variant: x.variant || null,
+      qty: Number(x.qty) || 1,
+      price: itemPrice,
       isNew: true
     };
   });
-  let breakdown = calculateOrderBreakdown(items, cafe().id);
+  let breakdown = calculateOrderBreakdown(items, cafe());
   let id = `ORD-${Math.max(1000, ...db.orders.map(o => +o.id.split('-')[1] || 0)) + 1}`;
   let o = {
     id,
