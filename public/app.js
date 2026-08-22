@@ -2144,15 +2144,20 @@ function render(){
   const app = $('#app');
   if(!app) return;
 
-  // Preserve window scroll position across renders when staying in the same view/page/category
+  // Preserve window scroll and category tabs horizontal scroll position across renders
   const prevView = state.view;
   const prevPage = state.page;
-  const prevCategory = state.customerCategory;
   const scrollX = window.scrollX || window.pageXOffset || 0;
   const scrollY = window.scrollY || window.pageYOffset || 0;
 
+  // Capture category tabs horizontal scroll position before DOM destruction
+  const existingCatTabs = document.querySelector('.category-tabs');
+  const savedCatScrollLeft = existingCatTabs ? existingCatTabs.scrollLeft : (state.catTabsScrollLeft || 0);
+
+  const existingPosTabs = document.querySelector('.pos-category-tabs');
+  const savedPosScrollLeft = existingPosTabs ? existingPosTabs.scrollLeft : (state.posCatTabsScrollLeft || 0);
+
   // Only capture focus & cursor selection position for editable input/textarea fields with an ID or name
-  // This prevents buttons/steppers/cards from stealing focus and causing unwanted mobile viewport jumps/scrolling
   const activeEl = document.activeElement;
   const isTextInput = activeEl && (
     activeEl.tagName === 'TEXTAREA' ||
@@ -2189,7 +2194,6 @@ function render(){
         app.innerHTML = qrGatekeeperView();
         initGatekeeperCamera(true);
       } else {
-        // Gatekeeper is already in the DOM, ensure camera stays active without wiping DOM
         initGatekeeperCamera(false);
       }
     } else if (state.view === 'confirmation') {
@@ -2202,6 +2206,39 @@ function render(){
   }
   bind();
 
+  // Restore or center Category Tabs scrolling seamlessly
+  const newCatTabs = document.querySelector('.category-tabs');
+  if (newCatTabs) {
+    const activeTab = newCatTabs.querySelector('.customer-cat.active');
+    if (state.categoryChanged && activeTab) {
+      activeTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      state.categoryChanged = false;
+      state.catTabsScrollLeft = newCatTabs.scrollLeft;
+    } else if (savedCatScrollLeft !== undefined && savedCatScrollLeft > 0) {
+      newCatTabs.scrollLeft = savedCatScrollLeft;
+    }
+
+    newCatTabs.addEventListener('scroll', () => {
+      state.catTabsScrollLeft = newCatTabs.scrollLeft;
+    }, { passive: true });
+  }
+
+  const newPosTabs = document.querySelector('.pos-category-tabs');
+  if (newPosTabs) {
+    const activePosTab = newPosTabs.querySelector('.pos-cat-pill.active');
+    if (state.posCategoryChanged && activePosTab) {
+      activePosTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      state.posCategoryChanged = false;
+      state.posCatTabsScrollLeft = newPosTabs.scrollLeft;
+    } else if (savedPosScrollLeft !== undefined && savedPosScrollLeft > 0) {
+      newPosTabs.scrollLeft = savedPosScrollLeft;
+    }
+
+    newPosTabs.addEventListener('scroll', () => {
+      state.posCatTabsScrollLeft = newPosTabs.scrollLeft;
+    }, { passive: true });
+  }
+
   if (state.view === 'customer' && state.boatAfloat) {
     clearTimeout(boatSinkTimeout);
     boatSinkTimeout = setTimeout(() => {
@@ -2209,14 +2246,14 @@ function render(){
     }, 4200);
   }
 
-  // Restore scroll position when re-rendering the same view so mobile screen doesn't jump
-  if (state.view === prevView && state.page === prevPage && state.customerCategory === prevCategory) {
+  // Restore window scroll position when staying in the same view so the page never jumps
+  if (state.view === prevView && state.page === prevPage) {
     window.scrollTo(scrollX, scrollY);
   }
 
   // Restore focus and cursor selection position safely with preventScroll for active text inputs only
   if (activeId || activeName) {
-    let target = activeId ? document.getElementById(activeId) : document.querySelector(`[name="${activeName.replace(/"/g, '\\"')}"]`);
+    let target = activeId ? document.getElementById(activeId) : document.querySelector(`[name="${activeName.replace(/"/g, '\\\"')}"]`);
     if (target && typeof target.focus === 'function') {
       try {
         target.focus({ preventScroll: true });
@@ -4151,9 +4188,13 @@ function bind(){
     });
   }
 
-  $$('.customer-cat').forEach(b => b.onclick = (e) => {
+  $('.customer-cat').forEach(b => b.onclick = (e) => {
     e.preventDefault();
-    state.customerCategory = b.dataset.cat;
+    const cat = b.dataset.cat;
+    if (state.customerCategory !== cat) {
+      state.customerCategory = cat;
+      state.categoryChanged = true;
+    }
     render();
   });
 
