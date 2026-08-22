@@ -350,22 +350,10 @@ seed.cafes.forEach(sc => {
   }
 });
 
-// Merge and synchronize seed menu items into db.menu
+// Merge any missing seed menu items into db.menu without overwriting user customizations
 seed.menu.forEach(sm => {
-  const existingIdx = db.menu.findIndex(m => m.id === sm.id);
-  if (existingIdx === -1) {
+  if (!db.menu.some(m => m.id === sm.id)) {
     db.menu.push(sm);
-  } else {
-    db.menu[existingIdx].image = sm.image;
-    db.menu[existingIdx].name = sm.name;
-    db.menu[existingIdx].category = sm.category;
-    db.menu[existingIdx].price = sm.price;
-    db.menu[existingIdx].variants = sm.variants;
-    db.menu[existingIdx].veg = sm.veg;
-    db.menu[existingIdx].isVeg = sm.isVeg;
-    db.menu[existingIdx].type = sm.type;
-    db.menu[existingIdx].description = sm.description;
-    db.menu[existingIdx].notes = sm.notes;
   }
 });
 
@@ -5009,27 +4997,68 @@ function cafeModal(edit){
 
 function menuModal(edit){
   let isEdit = !!edit;
-  modal(`<h2>${isEdit ? 'Edit menu item' : 'Add menu item'}</h2><form id="menu-form"><div class="field"><label>Item name</label><input name="name" required value="${esc(edit?.name || '')}"></div><div class="settings-grid"><div class="field"><label>Price (₹)</label><input name="price" type="number" min="0" required value="${esc(edit?.price || '')}"></div><div class="field"><label>Category</label><input name="category" required value="${esc(edit?.category || 'Coffee')}"></div></div><div class="field"><label>Description</label><textarea name="description" required>${esc(edit?.description || '')}</textarea></div><div class="field"><label>Image URL</label><input name="image" required value="${esc(edit?.image || imgs.cappuccino)}"></div><div class="modal-actions"><button type="button" class="outline modal-close">Cancel</button>${isEdit ? `<button type="button" class="danger" id="delete-menu">Delete</button>` : ''}<button class="primary">${isEdit ? 'Save changes' : 'Add item'}</button></div></form>`);
+  modal(`<h2>${isEdit ? 'Edit menu item' : 'Add menu item'}</h2><form id="menu-form">
+    <div class="field"><label>Item name</label><input name="name" required value="${esc(edit?.name || '')}"></div>
+    <div class="settings-grid">
+      <div class="field"><label>Price (₹)</label><input name="price" type="number" min="0" required value="${esc(edit?.price !== undefined ? edit.price : '')}"></div>
+      <div class="field"><label>Category</label><input name="category" required value="${esc(edit?.category || 'Coffee')}"></div>
+    </div>
+    <div class="field">
+      <label>Dietary Type</label>
+      <div style="display:flex;gap:18px;align-items:center;padding:4px 0;">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+          <input type="radio" name="veg" value="true" ${edit?.veg !== false ? 'checked' : ''}> 🌱 Vegetarian
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;">
+          <input type="radio" name="veg" value="false" ${edit?.veg === false ? 'checked' : ''}> 🍗 Non-Vegetarian
+        </label>
+      </div>
+    </div>
+    <div class="field"><label>Description</label><textarea name="description" required>${esc(edit?.description || '')}</textarea></div>
+    <div class="field"><label>Image URL</label><input name="image" required value="${esc(edit?.image || imgs.cappuccino)}"></div>
+    <div class="field" style="margin-top:6px;">
+      <label class="toggle-control-label" style="font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+        <input name="available" type="checkbox" ${edit?.available !== false ? 'checked' : ''}> In Stock & Published on Menu
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="outline modal-close">Cancel</button>
+      ${isEdit ? `<button type="button" class="danger" id="delete-menu">Delete</button>` : ''}
+      <button class="primary">${isEdit ? 'Save changes' : 'Add item'}</button>
+    </div>
+  </form>`);
   const closeBtn = $('.modal-close');
   if(closeBtn) closeBtn.onclick = closeModal;
   const form = $('#menu-form');
   if(form){
     form.onsubmit = e => {
       e.preventDefault();
-      let v = Object.fromEntries(new FormData(e.target));
+      const formData = new FormData(e.target);
+      let v = Object.fromEntries(formData);
       v.price = +v.price;
-      if(isEdit) Object.assign(edit, v);
-      else db.menu.push({ id: 'm' + Date.now(), cafeId: cafe().id, ...v, available: true, veg: true });
-      save();
+      v.veg = formData.get('veg') === 'true';
+      v.isVeg = v.veg;
+      v.type = v.veg ? 'VEG' : 'NON-VEG';
+      v.available = formData.get('available') !== null;
+      if(isEdit) {
+        const target = db.menu.find(m => m.id === edit.id);
+        if (target) {
+          Object.assign(target, v);
+        }
+        Object.assign(edit, v);
+      } else {
+        db.menu.push({ id: 'm' + Date.now(), cafeId: cafe().id, ...v });
+      }
+      save(true);
       closeModal();
       render();
-      toast(isEdit ? 'Menu item saved' : 'Menu item added');
+      toast(isEdit ? 'Menu item saved successfully!' : 'New menu item added!');
     };
   }
   $('#delete-menu')?.addEventListener('click', () => {
     if(confirm(`Remove ${edit.name} from the menu?`)){
-      db.menu = db.menu.filter(m => m !== edit);
-      save();
+      db.menu = db.menu.filter(m => m.id !== edit.id && m !== edit);
+      save(true);
       closeModal();
       render();
       toast('Menu item removed');
@@ -5205,20 +5234,8 @@ async function syncCloudDb(){
           }
         });
         seed.menu.forEach(sm => {
-          const sIdx = serverDb.menu.findIndex(m => m.id === sm.id);
-          if (sIdx === -1) {
+          if (!serverDb.menu.some(m => m.id === sm.id)) {
             serverDb.menu.push(sm);
-          } else {
-            serverDb.menu[sIdx].image = sm.image;
-            serverDb.menu[sIdx].name = sm.name;
-            serverDb.menu[sIdx].category = sm.category;
-            serverDb.menu[sIdx].price = sm.price;
-            serverDb.menu[sIdx].variants = sm.variants;
-            serverDb.menu[sIdx].veg = sm.veg;
-            serverDb.menu[sIdx].isVeg = sm.isVeg;
-            serverDb.menu[sIdx].type = sm.type;
-            serverDb.menu[sIdx].description = sm.description;
-            serverDb.menu[sIdx].notes = sm.notes;
           }
         });
         const serverSnapshot = JSON.stringify(serverDb);
