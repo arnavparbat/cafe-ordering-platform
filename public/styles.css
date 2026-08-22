@@ -1102,15 +1102,17 @@ a { text-decoration: none; color: inherit; }
   height: 280px;
   border-radius: 22px;
   overflow: hidden;
-  background: #000;
-  border: 2px solid rgba(229, 189, 125, 0.4);
-  box-shadow: 0 0 35px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(0, 0, 0, 0.9);
+  background: #140f0c;
+  border: 2px solid rgba(229, 189, 125, 0.5);
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.85), inset 0 0 30px rgba(0, 0, 0, 0.95);
   display: flex;
   justify-content: center;
   align-items: center;
   margin-bottom: 18px;
 }
 #gatekeeper-camera-viewport {
+  position: absolute;
+  inset: 0;
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
@@ -1118,23 +1120,33 @@ a { text-decoration: none; color: inherit; }
   align-items: center !important;
   overflow: hidden !important;
   border-radius: 20px !important;
+  background: #140f0c;
 }
-#gatekeeper-camera-viewport video {
+#gatekeeper-camera-viewport video,
+#gatekeeper-video {
+  position: absolute !important;
+  inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
   min-width: 100% !important;
   min-height: 100% !important;
   object-fit: cover !important;
+  display: block !important;
   border-radius: 20px !important;
+  background: #000;
+  transform: none;
 }
 .gatekeeper-status-row {
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 8px;
   color: #ebdcd0;
   font-size: 12.5px;
   font-weight: 500;
   margin-bottom: 16px;
+  min-height: 24px;
 }
 .gatekeeper-status-row .pulse-dot {
   width: 8px;
@@ -1143,6 +1155,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: 50%;
   box-shadow: 0 0 10px #38d39f;
   animation: pulse 1.5s infinite;
+  flex-shrink: 0;
 }
 .gatekeeper-actions {
   display: flex;

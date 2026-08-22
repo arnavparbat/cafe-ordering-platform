@@ -1478,157 +1478,343 @@ function qrGatekeeperView(){
   `;
 }
 
-let activeScanner = null;
+let liveScannerStream = null;
+let liveScannerVideo = null;
+let liveScannerAnimFrame = null;
+let liveScannerInterval = null;
 let currentFacingMode = "environment";
 let isCameraStarting = false;
-let availableCameras = [];
-let selectedCameraId = null;
+let isScannerRunning = false;
+let html5QrScannerInstance = null;
 
-async function initGatekeeperCamera() {
-  if (isCameraStarting) return;
-  isCameraStarting = true;
+async function initGatekeeperCamera(forceRestart = false) {
+  const viewportEl = document.getElementById("gatekeeper-camera-viewport");
+  const statusEl = document.getElementById("gatekeeper-camera-status");
+  if (!viewportEl) return;
 
-  if (!window.Html5Qrcode) {
-    setTimeout(() => {
-      isCameraStarting = false;
-      initGatekeeperCamera();
-    }, 200);
+  // If scanner is already active and video is actively playing, avoid unnecessary restarts
+  if (!forceRestart && isScannerRunning && liveScannerVideo && liveScannerVideo.srcObject && !liveScannerVideo.paused && liveScannerVideo.readyState >= 2) {
     return;
   }
 
-  const statusEl = document.getElementById("gatekeeper-camera-status");
+  if (isCameraStarting && !forceRestart) return;
+  isCameraStarting = true;
+
+  if (statusEl) {
+    statusEl.innerHTML = `<span style="color:#e5bd7d">Opening ${currentFacingMode === 'environment' ? 'back' : 'front'} camera...</span>`;
+  }
+
+  // Cleanly stop previous tracks
+  stopLiveCameraScanner(false);
 
   try {
-    if (activeScanner) {
-      try {
-        await activeScanner.stop();
-        activeScanner.clear();
-      } catch(e){}
-      activeScanner = null;
+    // 1. Direct WebRTC getUserMedia with native HTML5 <video> (Direct back camera, no black box bugs)
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+      let stream = null;
+
+      const constraintList = [
+        // Primary: ideal environment back camera
+        {
+          video: {
+            facingMode: { ideal: currentFacingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        },
+        // Fallback 1: basic facingMode
+        {
+          video: {
+            facingMode: currentFacingMode
+          },
+          audio: false
+        },
+        // Fallback 2: any available video device
+        {
+          video: true,
+          audio: false
+        }
+      ];
+
+      for (const constraints of constraintList) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (stream) break;
+        } catch (cErr) {
+          console.log('Camera constraint attempt:', constraints, cErr?.name || cErr?.message);
+        }
+      }
+
+      if (stream) {
+        liveScannerStream = stream;
+        viewportEl.innerHTML = '';
+
+        const video = document.createElement('video');
+        video.id = 'gatekeeper-video';
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('autoplay', 'true');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+
+        viewportEl.appendChild(video);
+        liveScannerVideo = video;
+
+        try {
+          await video.play();
+        } catch (playErr) {
+          console.log('Video play catch:', playErr);
+        }
+
+        const markReady = () => {
+          isScannerRunning = true;
+          isCameraStarting = false;
+          if (statusEl) {
+            statusEl.innerHTML = `Camera active · Looking for table QR standee...`;
+          }
+          startQrDetectionLoop(video);
+        };
+
+        if (video.readyState >= 2) {
+          markReady();
+        } else {
+          video.onloadeddata = markReady;
+          video.oncanplay = markReady;
+          video.onplaying = markReady;
+        }
+
+        // Safety fallback timer
+        setTimeout(() => {
+          if (isCameraStarting) {
+            isCameraStarting = false;
+            isScannerRunning = true;
+            if (statusEl) {
+              statusEl.innerHTML = `Camera active · Looking for table QR standee...`;
+            }
+            startQrDetectionLoop(video);
+          }
+        }, 500);
+
+        return;
+      }
     }
 
-    const viewportEl = document.getElementById("gatekeeper-camera-viewport");
-    if (!viewportEl) {
+    // 2. Fallback to Html5Qrcode if standard getUserMedia was not directly available
+    if (window.Html5Qrcode) {
+      viewportEl.innerHTML = '';
+      html5QrScannerInstance = new Html5Qrcode("gatekeeper-camera-viewport", { verbose: false });
+
+      const qrConfig = {
+        fps: 24,
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.0,
+        disableFlip: currentFacingMode === "environment"
+      };
+
+      await html5QrScannerInstance.start(
+        { facingMode: currentFacingMode },
+        qrConfig,
+        (decodedText) => handleGatekeeperQrScan(decodedText),
+        () => {}
+      );
+
+      const v = viewportEl.querySelector('video');
+      if (v) {
+        v.setAttribute('playsinline', 'true');
+        v.setAttribute('webkit-playsinline', 'true');
+        v.muted = true;
+        try { await v.play(); } catch (_) {}
+      }
+
+      isScannerRunning = true;
       isCameraStarting = false;
+      if (statusEl) {
+        statusEl.innerHTML = `Camera active · Looking for table QR standee...`;
+      }
       return;
     }
 
-    viewportEl.innerHTML = '';
-
-    activeScanner = new Html5Qrcode("gatekeeper-camera-viewport", {
-      verbose: false
-    });
-
-    // Query hardware cameras to select explicit device ID and avoid generic facingMode black screen bug
-    try {
-      availableCameras = await Html5Qrcode.getCameras();
-    } catch(err) {
-      console.log('Camera enumeration notice:', err);
-    }
-
-    let cameraTarget = { facingMode: currentFacingMode };
-
-    if (availableCameras && availableCameras.length > 0) {
-      let chosen = null;
-      if (currentFacingMode === "environment") {
-        // Find back / rear / wide / environment camera
-        chosen = availableCameras.find(c => /back|rear|environment|wide|main|0/i.test(c.label)) 
-              || availableCameras[availableCameras.length - 1];
-      } else {
-        // Find front / user / selfie camera
-        chosen = availableCameras.find(c => /front|user|selfie|face/i.test(c.label)) 
-              || availableCameras[0];
-      }
-      if (chosen && chosen.id) {
-        selectedCameraId = chosen.id;
-        cameraTarget = chosen.id;
-      }
-    }
-
-    const qrConfig = {
-      fps: 24,
-      qrbox: { width: 220, height: 220 },
-      aspectRatio: 1.0,
-      disableFlip: currentFacingMode === "environment"
-    };
-
-    await activeScanner.start(
-      cameraTarget,
-      qrConfig,
-      (decodedText) => {
-        handleGatekeeperQrScan(decodedText);
-      },
-      () => {}
-    );
-
-    // Ensure video stream element is active and rendered
-    const video = viewportEl.querySelector('video');
-    if (video) {
-      video.setAttribute('playsinline', 'true');
-      video.setAttribute('webkit-playsinline', 'true');
-      video.muted = true;
-      video.style.width = '100%';
-      video.style.height = '100%';
-      video.style.objectFit = 'cover';
-      if (video.paused) {
-        try { await video.play(); } catch(e){}
-      }
-    }
-
-    if (statusEl) {
-      statusEl.innerHTML = `Camera active · Looking for table QR standee...`;
-    }
+    throw new Error('Camera access not supported on this browser');
   } catch (err) {
-    console.warn('Gatekeeper camera start error:', err);
-    // Fallback if specific device ID failed
-    try {
-      if (activeScanner && !activeScanner.isScanning) {
-        await activeScanner.start(
-          { facingMode: currentFacingMode },
-          { fps: 20, qrbox: { width: 220, height: 220 } },
-          (decodedText) => handleGatekeeperQrScan(decodedText),
-          () => {}
-        );
-        isCameraStarting = false;
-        return;
-      }
-    } catch(fallbackErr){}
-
-    if (statusEl) {
-      statusEl.innerHTML = `<span style="color:#ff8577">Camera permission required. Please allow camera access in your browser settings.</span>`;
-    }
-  } finally {
+    console.warn('initGatekeeperCamera error:', err);
     isCameraStarting = false;
+    isScannerRunning = false;
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <span style="color:#ff8577;font-weight:600;">Camera access needed</span>
+          <span style="font-size:11.5px;color:#d1c0b3;">Please allow camera permission in your browser to scan the table standee.</span>
+          <button type="button" class="gatekeeper-flip-btn" id="btn-gatekeeper-retry" style="margin-top:4px;padding:6px 16px;font-size:12px;background:#c4823f;border-color:#c4823f;color:#fff;">${icon('camera')} Allow & Retry Camera</button>
+        </div>
+      `;
+      document.getElementById('btn-gatekeeper-retry')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        initGatekeeperCamera(true);
+      });
+    }
   }
 }
 
-function stopLiveCameraScanner() {
-  if (activeScanner) {
+function startQrDetectionLoop(video) {
+  if (liveScannerAnimFrame) {
+    cancelAnimationFrame(liveScannerAnimFrame);
+    liveScannerAnimFrame = null;
+  }
+  if (liveScannerInterval) {
+    clearInterval(liveScannerInterval);
+    liveScannerInterval = null;
+  }
+
+  const offscreenCanvas = document.createElement('canvas');
+  const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+  let hasBarcodeDetector = 'BarcodeDetector' in window;
+  let barcodeDetector = null;
+
+  if (hasBarcodeDetector) {
     try {
-      activeScanner.stop().catch(() => {}).finally(() => {
-        try { activeScanner.clear(); } catch(e){}
-        activeScanner = null;
+      barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+    } catch (_) {
+      hasBarcodeDetector = false;
+    }
+  }
+
+  let isScanningFrame = false;
+
+  const scanFrame = async () => {
+    if (!isScannerRunning || !video || video.paused || video.ended || video.readyState < 2) {
+      if (isScannerRunning) {
+        liveScannerAnimFrame = requestAnimationFrame(scanFrame);
+      }
+      return;
+    }
+
+    if (isScanningFrame) {
+      liveScannerAnimFrame = requestAnimationFrame(scanFrame);
+      return;
+    }
+
+    isScanningFrame = true;
+
+    try {
+      // 1. Native Hardware BarcodeDetector (Supported in modern Chrome Android & Safari iOS 17+)
+      if (barcodeDetector) {
+        try {
+          const barcodes = await barcodeDetector.detect(video);
+          if (barcodes && barcodes.length > 0) {
+            const raw = barcodes[0].rawValue;
+            if (raw) {
+              handleGatekeeperQrScan(raw);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. High-speed jsQR canvas decoder fallback
+      if (window.jsQR && video.videoWidth > 0 && video.videoHeight > 0) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const scale = Math.min(1, 480 / Math.max(vw, vh));
+        const cw = Math.floor(vw * scale);
+        const ch = Math.floor(vh * scale);
+
+        if (offscreenCanvas.width !== cw || offscreenCanvas.height !== ch) {
+          offscreenCanvas.width = cw;
+          offscreenCanvas.height = ch;
+        }
+
+        offscreenCtx.drawImage(video, 0, 0, cw, ch);
+        const imgData = offscreenCtx.getImageData(0, 0, cw, ch);
+        const code = window.jsQR(imgData.data, imgData.width, imgData.height, {
+          inversionAttempts: "dontInvert"
+        });
+
+        if (code && code.data) {
+          handleGatekeeperQrScan(code.data);
+          return;
+        }
+      }
+    } catch (_) {
+      // Ignore intermediate frame errors
+    } finally {
+      isScanningFrame = false;
+      if (isScannerRunning) {
+        liveScannerAnimFrame = requestAnimationFrame(scanFrame);
+      }
+    }
+  };
+
+  liveScannerAnimFrame = requestAnimationFrame(scanFrame);
+}
+
+function stopLiveCameraScanner(wipeDom = true) {
+  isScannerRunning = false;
+  isCameraStarting = false;
+
+  if (liveScannerAnimFrame) {
+    cancelAnimationFrame(liveScannerAnimFrame);
+    liveScannerAnimFrame = null;
+  }
+  if (liveScannerInterval) {
+    clearInterval(liveScannerInterval);
+    liveScannerInterval = null;
+  }
+
+  if (liveScannerStream) {
+    try {
+      liveScannerStream.getTracks().forEach(track => {
+        try { track.stop(); } catch (_) {}
       });
-    } catch(e) {
-      activeScanner = null;
+    } catch (_) {}
+    liveScannerStream = null;
+  }
+
+  if (liveScannerVideo) {
+    try {
+      liveScannerVideo.srcObject = null;
+    } catch (_) {}
+    liveScannerVideo = null;
+  }
+
+  if (html5QrScannerInstance) {
+    try {
+      html5QrScannerInstance.stop().catch(() => {}).finally(() => {
+        try { html5QrScannerInstance.clear(); } catch (_) {}
+        html5QrScannerInstance = null;
+      });
+    } catch (_) {
+      html5QrScannerInstance = null;
+    }
+  }
+
+  if (wipeDom) {
+    const viewportEl = document.getElementById("gatekeeper-camera-viewport");
+    if (viewportEl) {
+      viewportEl.innerHTML = '';
     }
   }
 }
 
 function handleGatekeeperQrScan(qrContent) {
+  if (!qrContent || typeof qrContent !== 'string') return;
+  const raw = qrContent.trim();
   try {
-    let url = null;
-    try {
-      url = new URL(qrContent);
-    } catch(e) {
-      if (qrContent.includes('?')) {
-        url = new URL(qrContent, window.location.origin);
-      }
-    }
-
     let targetCafe = cafe();
     let cleanTable = null;
     let tokenParam = null;
+
+    // 1. URL search parameters
+    let url = null;
+    try {
+      url = new URL(raw);
+    } catch (e) {
+      if (raw.includes('?') || raw.includes('=')) {
+        try {
+          url = new URL(raw.startsWith('?') ? raw : ('?' + raw), window.location.origin);
+        } catch (_) {}
+      }
+    }
 
     if (url) {
       const searchParams = url.searchParams;
@@ -1645,9 +1831,43 @@ function handleGatekeeperQrScan(qrContent) {
       }
     }
 
+    // 2. JSON structure
+    if ((!cleanTable || !tokenParam) && (raw.startsWith('{') && raw.endsWith('}'))) {
+      try {
+        const obj = JSON.parse(raw);
+        const cafeParam = obj.cafe || obj.cafeId || obj.c;
+        const tableParam = obj.table || obj.t || obj.tbl;
+        tokenParam = obj.token || obj.sig || obj.k || obj.auth;
+        if (cafeParam) {
+          targetCafe = db.cafes.find(c => c.id.toLowerCase() === String(cafeParam).toLowerCase() || (c.slug && c.slug.toLowerCase() === String(cafeParam).toLowerCase())) || targetCafe;
+        }
+        if (tableParam) {
+          cleanTable = String(tableParam).trim();
+          if (/^\d+$/.test(cleanTable)) cleanTable = cleanTable.padStart(2, '0');
+        }
+      } catch (_) {}
+    }
+
+    // 3. Colon delimited format (CAF-001:04:token)
+    if (!cleanTable || !tokenParam) {
+      const parts = raw.split(':');
+      if (parts.length >= 3) {
+        const cafeParam = parts[0];
+        const tableParam = parts[1];
+        tokenParam = parts[2];
+        if (cafeParam) {
+          targetCafe = db.cafes.find(c => c.id.toLowerCase() === cafeParam.toLowerCase()) || targetCafe;
+        }
+        if (tableParam) {
+          cleanTable = String(tableParam).trim();
+          if (/^\d+$/.test(cleanTable)) cleanTable = cleanTable.padStart(2, '0');
+        }
+      }
+    }
+
     if (targetCafe && cleanTable && tokenParam) {
       if (verifyTableToken(targetCafe.id, cleanTable, tokenParam)) {
-        stopLiveCameraScanner();
+        stopLiveCameraScanner(true);
         state.cafeId = targetCafe.id;
         state.table = cleanTable;
         state.tableVerified = true;
@@ -1663,6 +1883,7 @@ function handleGatekeeperQrScan(qrContent) {
         } catch (_) {}
         saveSession();
         playToingSound();
+        try { navigator.vibrate?.([50, 50, 100]); } catch (_) {}
         toast(`✅ Verified Table ${cleanTable}! Welcome to ${targetCafe.name}.`);
         render();
         return;
@@ -1671,7 +1892,7 @@ function handleGatekeeperQrScan(qrContent) {
 
     const statusEl = document.getElementById("gatekeeper-camera-status");
     if (statusEl) {
-      statusEl.innerHTML = `<span style="color:#ffb259">⚠️ Invalid QR code. Please scan the official table standee.</span>`;
+      statusEl.innerHTML = `<span style="color:#ffb259">⚠️ Invalid table QR code. Please scan the official table standee.</span>`;
     }
   } catch(e) {
     console.warn('QR parse error:', e);
@@ -1755,10 +1976,10 @@ function render(){
   }
 
   if (state.view === 'login') {
-    stopLiveCameraScanner();
+    stopLiveCameraScanner(true);
     app.innerHTML = loginView();
   } else if (state.view === 'dashboard') {
-    stopLiveCameraScanner();
+    stopLiveCameraScanner(true);
     app.innerHTML = dashboardView();
   } else {
     // Guest Customer Flow:
@@ -1767,14 +1988,20 @@ function render(){
       if (state.tableVerified || state.table) {
         invalidateTableSession(true);
       }
-      stopLiveCameraScanner();
-      app.innerHTML = qrGatekeeperView();
-      initGatekeeperCamera();
+      const existingGatekeeper = app.querySelector('.gatekeeper-layout');
+      if (!existingGatekeeper) {
+        stopLiveCameraScanner(true);
+        app.innerHTML = qrGatekeeperView();
+        initGatekeeperCamera(true);
+      } else {
+        // Gatekeeper is already in the DOM, ensure camera stays active without wiping DOM
+        initGatekeeperCamera(false);
+      }
     } else if (state.view === 'confirmation') {
-      stopLiveCameraScanner();
+      stopLiveCameraScanner(true);
       app.innerHTML = confirmationView();
     } else {
-      stopLiveCameraScanner();
+      stopLiveCameraScanner(true);
       app.innerHTML = customerView();
     }
   }
@@ -3706,19 +3933,20 @@ function bind(){
     };
   });
   
-  $('#btn-gatekeeper-flip')?.addEventListener('click', async () => {
+  $('#btn-gatekeeper-flip')?.addEventListener('click', async (e) => {
+    e.preventDefault();
     currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
-    if (availableCameras && availableCameras.length > 1) {
-      const currentIndex = availableCameras.findIndex(c => c.id === selectedCameraId);
-      const nextIndex = (currentIndex + 1) % availableCameras.length;
-      selectedCameraId = availableCameras[nextIndex]?.id || null;
-    }
-    await initGatekeeperCamera();
+    await initGatekeeperCamera(true);
+  });
+
+  $('#btn-gatekeeper-retry')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await initGatekeeperCamera(true);
   });
 
   $('#btn-switch-table')?.addEventListener('click', () => {
     if(confirm('Scan a different table QR standee?')){
-      stopLiveCameraScanner();
+      stopLiveCameraScanner(true);
       state.table = '';
       state.tableVerified = false;
       state.qrToken = null;
