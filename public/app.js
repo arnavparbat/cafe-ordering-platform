@@ -350,10 +350,22 @@ seed.cafes.forEach(sc => {
   }
 });
 
-// Merge any missing seed menu items into db.menu
+// Merge and synchronize seed menu items into db.menu
 seed.menu.forEach(sm => {
-  if (!db.menu.some(m => m.id === sm.id)) {
+  const existingIdx = db.menu.findIndex(m => m.id === sm.id);
+  if (existingIdx === -1) {
     db.menu.push(sm);
+  } else {
+    db.menu[existingIdx].image = sm.image;
+    db.menu[existingIdx].name = sm.name;
+    db.menu[existingIdx].category = sm.category;
+    db.menu[existingIdx].price = sm.price;
+    db.menu[existingIdx].variants = sm.variants;
+    db.menu[existingIdx].veg = sm.veg;
+    db.menu[existingIdx].isVeg = sm.isVeg;
+    db.menu[existingIdx].type = sm.type;
+    db.menu[existingIdx].description = sm.description;
+    db.menu[existingIdx].notes = sm.notes;
   }
 });
 
@@ -5041,8 +5053,20 @@ async function syncCloudDb(){
           }
         });
         seed.menu.forEach(sm => {
-          if (!serverDb.menu.some(m => m.id === sm.id)) {
+          const sIdx = serverDb.menu.findIndex(m => m.id === sm.id);
+          if (sIdx === -1) {
             serverDb.menu.push(sm);
+          } else {
+            serverDb.menu[sIdx].image = sm.image;
+            serverDb.menu[sIdx].name = sm.name;
+            serverDb.menu[sIdx].category = sm.category;
+            serverDb.menu[sIdx].price = sm.price;
+            serverDb.menu[sIdx].variants = sm.variants;
+            serverDb.menu[sIdx].veg = sm.veg;
+            serverDb.menu[sIdx].isVeg = sm.isVeg;
+            serverDb.menu[sIdx].type = sm.type;
+            serverDb.menu[sIdx].description = sm.description;
+            serverDb.menu[sIdx].notes = sm.notes;
           }
         });
         const serverSnapshot = JSON.stringify(serverDb);
