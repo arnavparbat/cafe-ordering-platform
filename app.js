@@ -103,26 +103,26 @@ const seed = {
     },
     {
       "id": "CAF-004",
-      "name": "Bookaribe",
-      "username": "bookaribe",
-      "slug": "bookaribe",
+      "name": "Bookavibe",
+      "username": "bookavibe",
+      "slug": "bookavibe",
       "password": "cafe123",
-      "qrSecret": "eng_sec_caf004_bookaribe",
+      "qrSecret": "eng_sec_caf004_bookavibe",
       "contact": "+91 98234 56789",
-      "address": "Bookaribe Cafe & Library, FC Road, Pune",
+      "address": "Bookavibe Cafe & Library, FC Road, Pune",
       "gstin": "27AAACB1234F1Z5",
       "gstRate": 5,
       "gstEnabled": true,
       "serviceChargeRate": 0,
       "serviceChargeEnabled": false,
       "customCharges": [],
-      "upiId": "bookaribe@upi",
-      "upiName": "Bookaribe Cafe",
+      "upiId": "bookavibe@upi",
+      "upiName": "Bookavibe Cafe",
       "upiEnabled": true,
       "status": "Active",
       "wifi": {
-            "ssid": "Bookaribe_Guest",
-            "password": "Bookaribe@2026"
+            "ssid": "Bookavibe_Guest",
+            "password": "Bookavibe@2026"
       },
       "opensAt": "08:00",
       "closesAt": "23:00",
@@ -162,7 +162,7 @@ const seed = {
     {id:'m16',cafeId:'CAF-003',name:'Penne Arrabbiata',description:'Slow-simmered San Marzano tomatoes, garlic & basil.',price:380,category:'Main Course',image:imgs.pasta,available:true,veg:true},
     {id:'m17',cafeId:'CAF-003',name:'Fudge Walnut Brownie',description:'Rich Belgian chocolate brownie with roasted walnuts.',price:200,category:'Desserts',image:imgs.brownie,available:true,veg:true},
 
-    // CAF-004 (Bookaribe)
+    // CAF-004 (Bookavibe)
     {"id":"bk_m001","cafeId":"CAF-004","name":"Alfredo Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":279,"veg":true,"isVeg":true,"type":"VEG","description":"Tender pasta tossed in a rich, creamy parmesan Alfredo sauce with herbs and garlic.","image":"https://images.unsplash.com/photo-1645112411341-6c4fd023714a?auto=format&fit=crop&w=700&q=80","available":true},
     {"id":"bk_m002","cafeId":"CAF-004","name":"Arrabbiata Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":279,"veg":true,"isVeg":true,"type":"VEG","description":"Al dente pasta cooked in a fiery tomato chili sauce with fresh garlic, basil, and olive oil.","image":"https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=700&q=80","available":true},
     {"id":"bk_m003","cafeId":"CAF-004","name":"Creamy Cheesy Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":299,"veg":true,"isVeg":true,"type":"VEG","description":"Decadent pasta smothered in a rich velvety cheese sauce blend topped with grated cheese.","image":"https://images.unsplash.com/photo-1546549032-9571cd6b27df?auto=format&fit=crop&w=700&q=80","available":true},
@@ -368,6 +368,19 @@ db.orders.forEach(order => {
   }
 });
 db.cafes.forEach((c, i) => {
+  if (c.id === 'CAF-004' || c.username === 'bookaribe' || c.slug === 'bookaribe' || c.name === 'Bookaribe') {
+    if (c.name === 'Bookaribe') c.name = 'Bookavibe';
+    if (c.username === 'bookaribe') c.username = 'bookavibe';
+    if (c.slug === 'bookaribe') c.slug = 'bookavibe';
+    if (c.qrSecret === 'eng_sec_caf004_bookaribe') c.qrSecret = 'eng_sec_caf004_bookavibe';
+    if (c.address && c.address.includes('Bookaribe')) c.address = c.address.replace(/Bookaribe/g, 'Bookavibe');
+    if (c.upiId === 'bookaribe@upi') c.upiId = 'bookavibe@upi';
+    if (c.upiName === 'Bookaribe Cafe') c.upiName = 'Bookavibe Cafe';
+    if (c.wifi) {
+      if (c.wifi.ssid === 'Bookaribe_Guest') c.wifi.ssid = 'Bookavibe_Guest';
+      if (c.wifi.password === 'Bookaribe@2026') c.wifi.password = 'Bookavibe@2026';
+    }
+  }
   c.opensAt ||= '08:00';
   c.closesAt ||= '22:30';
   c.address ||= '18, Park Street, Kolkata';
@@ -5231,6 +5244,21 @@ async function syncCloudDb(){
         seed.cafes.forEach(sc => {
           if (!serverDb.cafes.some(c => c.id === sc.id || (sc.slug && c.slug === sc.slug))) {
             serverDb.cafes.push(sc);
+          }
+        });
+        serverDb.cafes.forEach(c => {
+          if (c.id === 'CAF-004' || c.username === 'bookaribe' || c.slug === 'bookaribe' || c.name === 'Bookaribe') {
+            if (c.name === 'Bookaribe') c.name = 'Bookavibe';
+            if (c.username === 'bookaribe') c.username = 'bookavibe';
+            if (c.slug === 'bookaribe') c.slug = 'bookavibe';
+            if (c.qrSecret === 'eng_sec_caf004_bookaribe') c.qrSecret = 'eng_sec_caf004_bookavibe';
+            if (c.address && c.address.includes('Bookaribe')) c.address = c.address.replace(/Bookaribe/g, 'Bookavibe');
+            if (c.upiId === 'bookaribe@upi') c.upiId = 'bookavibe@upi';
+            if (c.upiName === 'Bookaribe Cafe') c.upiName = 'Bookavibe Cafe';
+            if (c.wifi) {
+              if (c.wifi.ssid === 'Bookaribe_Guest') c.wifi.ssid = 'Bookavibe_Guest';
+              if (c.wifi.password === 'Bookaribe@2026') c.wifi.password = 'Bookavibe@2026';
+            }
           }
         });
         seed.menu.forEach(sm => {
