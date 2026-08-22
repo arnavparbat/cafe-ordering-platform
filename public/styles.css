@@ -3516,3 +3516,105 @@ a { text-decoration: none; color: inherit; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ========================================================
+   MENU ITEM VARIANTS & CAFE DISCLAIMERS STYLING
+   ======================================================== */
+.customer-variant-group {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f3ece4;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.variant-pill-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #fbf8f4;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #efe4d8;
+}
+.variant-name {
+  font-size: 12px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.variant-name b {
+  color: var(--coffee);
+  font-weight: 700;
+  margin-left: 3px;
+}
+.variant-add-btn {
+  border: 1px solid #c8ad90;
+  background: #fff;
+  color: var(--coffee);
+  padding: 4px 12px;
+  border-radius: 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.variant-add-btn:hover {
+  background: var(--coffee);
+  color: #fff;
+  border-color: var(--coffee);
+}
+.mini-stepper {
+  min-width: 80px;
+  padding: 2px 4px;
+}
+.mini-stepper .customer-stepper-btn {
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+}
+.mini-stepper .customer-stepper-val {
+  font-size: 12px;
+}
+.tag-veg {
+  color: #2b7a4b;
+}
+.tag-nonveg {
+  color: #a4483d;
+}
+
+/* Cafe Notes & Disclaimers Banner */
+.cafe-notes-section {
+  max-width: 1200px;
+  margin: 32px auto 16px;
+  padding: 18px 22px;
+  background: #fcf9f4;
+  border: 1.5px solid #ebd9c8;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(60, 40, 25, 0.04);
+}
+.cafe-notes-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--coffee);
+  font-size: 13.5px;
+  margin-bottom: 8px;
+}
+.cafe-notes-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+  color: #634b3d;
+  line-height: 1.6;
+}
+.cafe-notes-list li {
+  margin-bottom: 3px;
+}
+.cafe-disclaimer-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: #634b3d;
+  line-height: 1.5;
+}

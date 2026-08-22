@@ -100,7 +100,43 @@ const seed = {
       closesAt: '22:00',
       description: 'Charming courtyard café with artisan sourdough toasts & cold brews.',
       image: 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&w=1800&q=85'
-    }
+    },
+    {
+      "id": "CAF-004",
+      "name": "Bookaribe",
+      "username": "bookaribe",
+      "slug": "bookaribe",
+      "password": "cafe123",
+      "qrSecret": "eng_sec_caf004_bookaribe",
+      "contact": "+91 98234 56789",
+      "address": "Bookaribe Cafe & Library, FC Road, Pune",
+      "gstin": "27AAACB1234F1Z5",
+      "gstRate": 5,
+      "gstEnabled": true,
+      "serviceChargeRate": 0,
+      "serviceChargeEnabled": false,
+      "customCharges": [],
+      "upiId": "bookaribe@upi",
+      "upiName": "Bookaribe Cafe",
+      "upiEnabled": true,
+      "status": "Active",
+      "wifi": {
+            "ssid": "Bookaribe_Guest",
+            "password": "Bookaribe@2026"
+      },
+      "opensAt": "08:00",
+      "closesAt": "23:00",
+      "description": "A cozy reading and dining haven serving artisan pastas, stone-baked pizzas, thick shakes & specialty coffees.",
+      "notes": [
+            "Prices are GST exclusive.",
+            "Extra charges apply for extra chips & cheese.",
+            "Extra charges apply for splitting an item for two people (one-by-two).",
+            "Dairy Paneer & Dairy Cheese used — no analogue/vegan substitute used."
+      ],
+      "disclaimer": "Prices are GST exclusive. Extra charges apply for extra chips & cheese or splitting 1-by-2. 100% pure dairy paneer & cheese used.",
+      "menuType": "Cafe (Veg + Non-Veg)",
+      "image": "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1800&q=85"
+}
   ],
   menu: [
     // CAF-001 (Park Street)
@@ -124,7 +160,140 @@ const seed = {
     {id:'m14',cafeId:'CAF-003',name:'Artisan Flat White',description:'Ristretto espresso with microfoam velvety milk.',price:190,category:'Coffee',image:imgs.latte,available:true,veg:true},
     {id:'m15',cafeId:'CAF-003',name:'Avocado Sourdough Toast',description:'Hass avocado, chili flakes, feta & microgreens.',price:310,category:'Breakfast',image:imgs.sandwich,available:true,veg:true},
     {id:'m16',cafeId:'CAF-003',name:'Penne Arrabbiata',description:'Slow-simmered San Marzano tomatoes, garlic & basil.',price:380,category:'Main Course',image:imgs.pasta,available:true,veg:true},
-    {id:'m17',cafeId:'CAF-003',name:'Fudge Walnut Brownie',description:'Rich Belgian chocolate brownie with roasted walnuts.',price:200,category:'Desserts',image:imgs.brownie,available:true,veg:true}
+    {id:'m17',cafeId:'CAF-003',name:'Fudge Walnut Brownie',description:'Rich Belgian chocolate brownie with roasted walnuts.',price:200,category:'Desserts',image:imgs.brownie,available:true,veg:true},
+
+    // CAF-004 (Bookaribe)
+    {"id":"bk_m001","cafeId":"CAF-004","name":"Alfredo Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":279,"veg":true,"isVeg":true,"type":"VEG","description":"Tender pasta tossed in a rich, creamy parmesan Alfredo sauce with herbs and garlic.","image":"https://images.unsplash.com/photo-1645112411341-6c4fd023714a?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m002","cafeId":"CAF-004","name":"Arrabbiata Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":279,"veg":true,"isVeg":true,"type":"VEG","description":"Al dente pasta cooked in a fiery tomato chili sauce with fresh garlic, basil, and olive oil.","image":"https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m003","cafeId":"CAF-004","name":"Creamy Cheesy Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":299,"veg":true,"isVeg":true,"type":"VEG","description":"Decadent pasta smothered in a rich velvety cheese sauce blend topped with grated cheese.","image":"https://images.unsplash.com/photo-1546549032-9571cd6b27df?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m004","cafeId":"CAF-004","name":"Pesto Pasta","category":"Pasta (Veg)","mainCategory":"Pasta","subCategory":"Veg","price":319,"veg":true,"isVeg":true,"type":"VEG","description":"Pasta coated in fragrant basil pesto, roasted pine nuts, parmesan, and extra virgin olive oil.","image":"https://images.unsplash.com/photo-1597131628347-c769fc631754?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m005","cafeId":"CAF-004","name":"Alfredo Pasta","category":"Pasta (Non-Veg)","mainCategory":"Pasta","subCategory":"Non-Veg","price":299,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Creamy white Alfredo pasta tossed with succulent spiced chicken chunks and parmesan.","image":"https://images.unsplash.com/photo-1621996346565-e3d5d6281292?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m006","cafeId":"CAF-004","name":"Arrabbiata Pasta","category":"Pasta (Non-Veg)","mainCategory":"Pasta","subCategory":"Non-Veg","price":299,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Spicy red arrabbiata pasta simmered with tender chicken bites, garlic, and fresh herbs.","image":"https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m007","cafeId":"CAF-004","name":"Creamy Cheesy Pasta","category":"Pasta (Non-Veg)","mainCategory":"Pasta","subCategory":"Non-Veg","price":329,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Rich four-cheese sauce pasta loaded with seasoned tender chicken pieces.","image":"https://images.unsplash.com/photo-1608897013039-887f21d8c804?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m008","cafeId":"CAF-004","name":"Pesto Pasta","category":"Pasta (Non-Veg)","mainCategory":"Pasta","subCategory":"Non-Veg","price":349,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Fresh basil pesto pasta tossed with grilled chicken morsels and parmesan shavings.","image":"https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m009","cafeId":"CAF-004","name":"Grilled Chicken Alfredo Pasta","category":"Pasta (Non-Veg)","mainCategory":"Pasta","subCategory":"Non-Veg","price":369,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Tender sliced herb-grilled chicken breast served over rich, velvety fettuccine Alfredo.","image":"https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m010","cafeId":"CAF-004","name":"Soya Kheema","category":"Main Course (Veg)","mainCategory":"Main Course","subCategory":"Veg","price":249,"veg":true,"isVeg":true,"type":"VEG","description":"Finely minced spiced soya granules slow-cooked with aromatic Indian spices, onions, and tomatoes.","image":"https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m011","cafeId":"CAF-004","name":"Paneer Burji","category":"Main Course (Veg)","mainCategory":"Main Course","subCategory":"Veg","price":299,"veg":true,"isVeg":true,"type":"VEG","notes":"Brown bread extra chargeable","description":"Scrambled fresh cottage cheese tempered with onions, tomatoes, green chilies, and coriander. *Brown bread extra chargeable","image":"https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m012","cafeId":"CAF-004","name":"Egg Burji","category":"Main Course (Non-Veg)","mainCategory":"Main Course","subCategory":"Non-Veg","price":249,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Classic Indian style spiced scrambled eggs sautéed with onions, green chilies, tomatoes, and cilantro.","image":"https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m013","cafeId":"CAF-004","name":"Chicken Kheema","category":"Main Course (Non-Veg)","mainCategory":"Main Course","subCategory":"Non-Veg","price":299,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Succulent minced chicken simmered with rustic whole spices, caramelized onions, and fragrant herbs.","image":"https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m014","cafeId":"CAF-004","name":"Aglio E Olio Spaghetti","category":"Spaghetti (Veg)","mainCategory":"Spaghetti","subCategory":"Veg","price":279,"veg":true,"isVeg":true,"type":"VEG","description":"Classic Italian spaghetti tossed with extra virgin olive oil, sliced golden garlic, chili flakes, and parsley.","image":"https://images.unsplash.com/photo-1551892374-ecf8754cf8b0?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m015","cafeId":"CAF-004","name":"Arrabbiata Spaghetti","category":"Spaghetti (Veg)","mainCategory":"Spaghetti","subCategory":"Veg","price":299,"veg":true,"isVeg":true,"type":"VEG","description":"Long spaghetti strands simmered in a zesty, spicy tomato-chili arrabbiata sauce with herbs.","image":"https://images.unsplash.com/photo-1579684947550-22e945225d9a?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m016","cafeId":"CAF-004","name":"Creamy Cheesy Alfredo Spaghetti (White)","category":"Spaghetti (Veg)","mainCategory":"Spaghetti","subCategory":"Veg","price":319,"veg":true,"isVeg":true,"type":"VEG","description":"Spaghetti enveloped in velvety white cream and melted parmesan cheese sauce.","image":"https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m017","cafeId":"CAF-004","name":"Aglio E Olio Chicken Spaghetti","category":"Spaghetti (Non-Veg)","mainCategory":"Spaghetti","subCategory":"Non-Veg","price":299,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Spaghetti Aglio e Olio tossed with tender seared chicken chunks, garlic, olive oil, and herbs.","image":"https://images.unsplash.com/photo-1543339308-43e59d6b73a6?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m018","cafeId":"CAF-004","name":"Arrabbiat Chicken Spaghetti","category":"Spaghetti (Non-Veg)","mainCategory":"Spaghetti","subCategory":"Non-Veg","price":329,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Spaghetti in spicy crushed tomato sauce with tender chicken pieces, garlic, and fresh basil.","image":"https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m019","cafeId":"CAF-004","name":"Creamy Cheesy Chicken Spaghetti","category":"Spaghetti (Non-Veg)","mainCategory":"Spaghetti","subCategory":"Non-Veg","price":349,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Silky cheesy white sauce spaghetti loaded with grilled juicy chicken bits.","image":"https://images.unsplash.com/photo-1608897013039-887f21d8c804?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m020","cafeId":"CAF-004","name":"Veg Cheese Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":119,"veg":true,"isVeg":true,"type":"VEG","description":"Fresh bread stuffed with cucumber, tomato, onion slices, and melted cheese slices with mint chutney.","image":"https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m021","cafeId":"CAF-004","name":"Veg Grill Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Crispy grilled sandwich packed with seasoned garden vegetables, butter, and green chutney.","image":"https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m022","cafeId":"CAF-004","name":"Veg Cheese Grill Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Golden grilled sandwich bursting with crunchy vegetables, special spices, and gooey melted cheese.","image":"https://images.unsplash.com/photo-1528736235302-52922df5c122?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m023","cafeId":"CAF-004","name":"Corn Cheese Grill Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":179,"veg":true,"isVeg":true,"type":"VEG","description":"Sweet golden corn kernels layered with abundant mozzarella cheese and herbs in grilled bread.","image":"https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m024","cafeId":"CAF-004","name":"Spinach and Corn Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Sautéed creamy spinach and tender sweet corn encased in golden toasted bread.","image":"https://images.unsplash.com/photo-1509722747041-616f39b57569?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m025","cafeId":"CAF-004","name":"Paneer Tikka Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":199,"veg":true,"isVeg":true,"type":"VEG","description":"Smoky tandoori marinated paneer cubes layered with onions, capsicum, and spiced mayo in grilled bread.","image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m026","cafeId":"CAF-004","name":"Schezwan Paneer Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":219,"veg":true,"isVeg":true,"type":"VEG","description":"Fiery Schezwan spiced cottage cheese cubes grilled to perfection with crisp veggies and cheese.","image":"https://images.unsplash.com/photo-1619860860774-1e2e17343432?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m027","cafeId":"CAF-004","name":"Herb Paneer Sandwich","category":"Sandwiches (Veg)","mainCategory":"Sandwiches","subCategory":"Veg","price":229,"veg":true,"isVeg":true,"type":"VEG","description":"Marinated herb paneer with Italian seasoning, garlic mayo, lettuce, and melted cheese.","image":"https://images.unsplash.com/photo-1539252554453-80ab65ce3586?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m028","cafeId":"CAF-004","name":"Egg Sandwich","category":"Sandwiches (Non-Veg)","mainCategory":"Sandwiches","subCategory":"Non-Veg","price":139,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Fluffy seasoned egg scramble/omelette with peppers, black pepper, and mayo in toasted bread.","image":"https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m029","cafeId":"CAF-004","name":"Chicken Grill Sandwich","category":"Sandwiches (Non-Veg)","mainCategory":"Sandwiches","subCategory":"Non-Veg","price":179,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Seasoned shredded chicken, crunchy peppers, and creamy spread grilled to golden perfection.","image":"https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m030","cafeId":"CAF-004","name":"Crispy Grill Sandwich","category":"Sandwiches (Non-Veg)","mainCategory":"Sandwiches","subCategory":"Non-Veg","price":199,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Crispy coated chicken fillets layered with crunchy slaw and spicy sauce inside toasted bread.","image":"https://images.unsplash.com/photo-1603064752734-4c48eff53d05?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m031","cafeId":"CAF-004","name":"Chicken Tikka Sandwich","category":"Sandwiches (Non-Veg)","mainCategory":"Sandwiches","subCategory":"Non-Veg","price":219,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Smoky clay-oven style chicken tikka morsels tossed in tandoori dressing with pickled onions.","image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m032","cafeId":"CAF-004","name":"Chicken Shezwan Sandwich","category":"Sandwiches (Non-Veg)","mainCategory":"Sandwiches","subCategory":"Non-Veg","price":239,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Shredded chicken tossed in spicy Schezwan sauce, capsicum, and melted mozzarella.","image":"https://images.unsplash.com/photo-1619860860774-1e2e17343432?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m033","cafeId":"CAF-004","name":"Veg Burger","category":"Burger (Veg)","mainCategory":"Burger","subCategory":"Veg","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Crispy mixed vegetable patty topped with lettuce, sliced tomatoes, onions, and creamy mayo in toasted buns.","image":"https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m034","cafeId":"CAF-004","name":"Aloo Tikki Burger","category":"Burger (Veg)","mainCategory":"Burger","subCategory":"Veg","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Golden spiced potato patty topped with tangy mint sauce, tamarind chutney, and fresh onion rings.","image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m035","cafeId":"CAF-004","name":"Cheese Blast Burger","category":"Burger (Veg)","mainCategory":"Burger","subCategory":"Veg","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Crispy patty loaded with a molten cheese burst center, cheddar slice, and creamy dressing.","image":"https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m036","cafeId":"CAF-004","name":"Tandoor Paneer Burger","category":"Burger (Veg)","mainCategory":"Burger","subCategory":"Veg","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Thick slice of tandoori-marinated paneer grilled over open flame with tandoori mayo and onions.","image":"https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m037","cafeId":"CAF-004","name":"Veg Schezwan Burger","category":"Burger (Veg)","mainCategory":"Burger","subCategory":"Veg","price":199,"veg":true,"isVeg":true,"type":"VEG","description":"Crunchy vegetable patty slathered in spicy Schezwan sauce with pickled jalapeños and greens.","image":"https://images.unsplash.com/photo-1571091718767-18b5b1457add?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m038","cafeId":"CAF-004","name":"Chicken Burger","category":"Burger (Non-Veg)","mainCategory":"Burger","subCategory":"Non-Veg","price":189,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Juicy chicken patty seasoned with herbs, topped with crisp iceberg lettuce and garlic mayo.","image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m039","cafeId":"CAF-004","name":"Chicken Cheese Blast Burger","category":"Burger (Non-Veg)","mainCategory":"Burger","subCategory":"Non-Veg","price":209,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Chicken patty with an oozy molten cheese core, melted cheddar, and barbecue garlic glaze.","image":"https://images.unsplash.com/photo-1586190848861-99aa4a171e90?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m040","cafeId":"CAF-004","name":"Tandoor Chicken Burger","category":"Burger (Non-Veg)","mainCategory":"Burger","subCategory":"Non-Veg","price":219,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Smoky tandoori marinated chicken breast with mint mayo, sliced red onions, and chaat spices.","image":"https://images.unsplash.com/photo-1571091718767-18b5b1457add?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m041","cafeId":"CAF-004","name":"Crispy Chicken Burger","category":"Burger (Non-Veg)","mainCategory":"Burger","subCategory":"Non-Veg","price":239,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Ultra-crispy golden fried chicken thigh with spicy mayo, dill pickles, and shredded lettuce.","image":"https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m042","cafeId":"CAF-004","name":"Chicken Schezwan Burger","category":"Burger (Non-Veg)","mainCategory":"Burger","subCategory":"Non-Veg","price":249,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Spicy grilled chicken patty glazed with pungent Schezwan sauce, fresh slaw, and melted cheese.","image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m043","cafeId":"CAF-004","name":"Vegetable Salad","category":"Salads (Veg)","mainCategory":"Salads","subCategory":"Veg","price":279,"veg":true,"isVeg":true,"type":"VEG","description":"Crisp mixed garden greens, cherry tomatoes, cucumbers, bell peppers, olives, and citrus vinaigrette.","image":"https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m044","cafeId":"CAF-004","name":"Paneer Salad","category":"Salads (Veg)","mainCategory":"Salads","subCategory":"Veg","price":339,"variants":[{"name":"Protein 20gm","price":339},{"name":"Protein 40gm","price":399}],"veg":true,"isVeg":true,"type":"VEG","description":"Grilled soft dairy paneer cubes on crunchy mixed greens, tossed with roasted seeds and herb dressing.","image":"https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m045","cafeId":"CAF-004","name":"Egg Salad","category":"Salads (Non-Veg)","mainCategory":"Salads","subCategory":"Non-Veg","price":319,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Boiled farm eggs tossed with crisp lettuce, cherry tomatoes, dijon mustard dressing, and cracked pepper.","image":"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m046","cafeId":"CAF-004","name":"Chicken Salad","category":"Salads (Non-Veg)","mainCategory":"Salads","subCategory":"Non-Veg","price":349,"variants":[{"name":"Protein 30gm","price":349},{"name":"Protein 60gm","price":419}],"veg":false,"isVeg":false,"type":"NON-VEG","description":"Tender herb-marinated grilled chicken breast served over farm greens with balsamic dressing.","image":"https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m047","cafeId":"CAF-004","name":"Margherita Pizza","category":"Pizza (Veg)","mainCategory":"Pizza","subCategory":"Veg","price":149,"variants":[{"name":"Small","price":149},{"name":"Large","price":219}],"veg":true,"isVeg":true,"type":"VEG","description":"Classic Neapolitan style tomato sauce, 100% dairy mozzarella, fresh basil leaves, and olive oil.","image":"https://images.unsplash.com/photo-1604382355076-af4b0eb60143?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m048","cafeId":"CAF-004","name":"Farmers Pizza","category":"Pizza (Veg)","mainCategory":"Pizza","subCategory":"Veg","price":219,"variants":[{"name":"Small","price":219},{"name":"Large","price":289}],"veg":true,"isVeg":true,"type":"VEG","description":"Loaded with capsicum, red onions, mushrooms, juicy sweet corn, and golden mozzarella cheese.","image":"https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m049","cafeId":"CAF-004","name":"Corn Fiesta Pizza","category":"Pizza (Veg)","mainCategory":"Pizza","subCategory":"Veg","price":239,"variants":[{"name":"Small","price":239},{"name":"Large","price":309}],"veg":true,"isVeg":true,"type":"VEG","description":"Sweet golden corn, jalapeños, red paprika, and double mozzarella cheese on herb tomato sauce.","image":"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m050","cafeId":"CAF-004","name":"Mexican Spice Pizza","category":"Pizza (Veg)","mainCategory":"Pizza","subCategory":"Veg","price":249,"variants":[{"name":"Small","price":249},{"name":"Large","price":319}],"veg":true,"isVeg":true,"type":"VEG","description":"Spicy Mexican salsa sauce, jalapeños, onions, crisp capsicum, and Mexican seasoning with cheese.","image":"https://images.unsplash.com/photo-1593560708920-61dd98c46a4e?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m051","cafeId":"CAF-004","name":"Paneer Tikka Pizza","category":"Pizza (Veg)","mainCategory":"Pizza","subCategory":"Veg","price":279,"variants":[{"name":"Small","price":279},{"name":"Large","price":349}],"veg":true,"isVeg":true,"type":"VEG","description":"Tandoori spiced dairy paneer cubes, capsicum, red onions, and mozzarella drizzled with mint mayo.","image":"https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m052","cafeId":"CAF-004","name":"Paneer Butter Garlic Pizza","category":"Pizza (Veg)","mainCategory":"Pizza","subCategory":"Veg","price":299,"variants":[{"name":"Small","price":299},{"name":"Large","price":369}],"veg":true,"isVeg":true,"type":"VEG","description":"Succulent paneer tossed in butter garlic glaze, roasted garlic bits, and abundant melted mozzarella.","image":"https://images.unsplash.com/photo-1594007654729-407eedc4be65?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m053","cafeId":"CAF-004","name":"Herb Chicken Pizza","category":"Pizza (Non-Veg)","mainCategory":"Pizza","subCategory":"Non-Veg","price":239,"variants":[{"name":"Small","price":239},{"name":"Large","price":299}],"veg":false,"isVeg":false,"type":"NON-VEG","description":"Italian herb roasted chicken breast chunks, bell peppers, black olives, and melted mozzarella.","image":"https://images.unsplash.com/photo-1534308983496-4fabb1a015ee?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m054","cafeId":"CAF-004","name":"Butter Chicken Pizza","category":"Pizza (Non-Veg)","mainCategory":"Pizza","subCategory":"Non-Veg","price":289,"variants":[{"name":"Small","price":289},{"name":"Large","price":369}],"veg":false,"isVeg":false,"type":"NON-VEG","description":"Creamy makhani sauce base topped with succulent tandoori chicken, onions, and cheese.","image":"https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m055","cafeId":"CAF-004","name":"Spicy Shezwan Chicken Pizza","category":"Pizza (Non-Veg)","mainCategory":"Pizza","subCategory":"Non-Veg","price":299,"variants":[{"name":"Small","price":299},{"name":"Large","price":389}],"veg":false,"isVeg":false,"type":"NON-VEG","description":"Fiery Schezwan sauce, spicy marinated chicken, jalapeños, onions, and golden melted cheese.","image":"https://images.unsplash.com/photo-1593560708920-61dd98c46a4e?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m056","cafeId":"CAF-004","name":"Classic Plain Maggie","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":99,"veg":true,"isVeg":true,"type":"VEG","description":"Classic soul-warming noodles cooked with Maggi tastemaker and light herbs.","image":"https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m057","cafeId":"CAF-004","name":"Masala Maggie","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":109,"veg":true,"isVeg":true,"type":"VEG","description":"Extra spiced Maggi noodles with sautéed onions, tomatoes, and green chilies.","image":"https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m058","cafeId":"CAF-004","name":"Vegetable Maggie","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":119,"veg":true,"isVeg":true,"type":"VEG","description":"Loaded with diced carrots, green peas, capsicum, onions, and sweet corn.","image":"https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m059","cafeId":"CAF-004","name":"Peri-Peri Maggie","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Zesty and spicy noodles tossed in fiery African peri-peri seasoning.","image":"https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m060","cafeId":"CAF-004","name":"Cheesy Maggie","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Topped with a generous layer of melted cheddar and mozzarella cheese.","image":"https://images.unsplash.com/photo-1552611052-33e04de081de?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m061","cafeId":"CAF-004","name":"Tadka Maggie","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Desi street style Maggi tempered with garlic, cumin, mustard seeds, and butter.","image":"https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m062","cafeId":"CAF-004","name":"Schezwan Maggie Cheesy","category":"Maggie (Veg)","mainCategory":"Maggie","subCategory":"Veg","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Spicy Schezwan tossed Maggi smothered with molten cheese.","image":"https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m063","cafeId":"CAF-004","name":"Classic Nachos","category":"Nachos (Veg)","mainCategory":"Nachos","subCategory":"Veg","price":159,"veg":true,"isVeg":true,"type":"VEG","description":"Crispy corn tortilla chips served with tangy homemade salsa dip.","image":"https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m064","cafeId":"CAF-004","name":"Cheesy Nachos","category":"Nachos (Veg)","mainCategory":"Nachos","subCategory":"Veg","price":179,"veg":true,"isVeg":true,"type":"VEG","description":"Crunchy tortilla chips smothered in warm cheddar cheese sauce and jalapeños.","image":"https://images.unsplash.com/photo-1572802419224-296b0aeee0d9?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m065","cafeId":"CAF-004","name":"Nachos Supreme","category":"Nachos (Veg)","mainCategory":"Nachos","subCategory":"Veg","price":199,"veg":true,"isVeg":true,"type":"VEG","description":"Ultimate loaded nachos with cheese sauce, refried beans, salsa, olives, and sour cream.","image":"https://images.unsplash.com/photo-1582169296194-e4d644c48063?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m066","cafeId":"CAF-004","name":"Onion Ring","category":"Veg Bites","mainCategory":"Veg Bites","subCategory":"Veg","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Crispy battered and golden fried sweet onion rings served with dip.","image":"https://images.unsplash.com/photo-1639024471287-03521672c98c?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m067","cafeId":"CAF-004","name":"Smiley","category":"Veg Bites","mainCategory":"Veg Bites","subCategory":"Veg","price":179,"veg":true,"isVeg":true,"type":"VEG","description":"Crispy fried potato smiles served golden and hot with ketchup.","image":"https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m068","cafeId":"CAF-004","name":"Chilli Garlic Potato Shots","category":"Veg Bites","mainCategory":"Veg Bites","subCategory":"Veg","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Crisp bite-sized potato poppers seasoned with chili flakes and roasted garlic.","image":"https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m069","cafeId":"CAF-004","name":"Chicken Popcorn","category":"Chicken Bites (Non-Veg)","mainCategory":"Chicken Bites","subCategory":"Non-Veg","price":169,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Tender bite-sized pieces of chicken coated in a crispy crunchy seasoning.","image":"https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m070","cafeId":"CAF-004","name":"Chicken Crispy Strips","category":"Chicken Bites (Non-Veg)","mainCategory":"Chicken Bites","subCategory":"Non-Veg","price":179,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Golden crumb-fried tender chicken breast tenders served with dip.","image":"https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m071","cafeId":"CAF-004","name":"Chicken Nuggets","category":"Chicken Bites (Non-Veg)","mainCategory":"Chicken Bites","subCategory":"Non-Veg","price":189,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Classic crispy chicken nuggets fried to perfection with creamy dip.","image":"https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m072","cafeId":"CAF-004","name":"Chicken Kebab","category":"Chicken Bites (Non-Veg)","mainCategory":"Chicken Bites","subCategory":"Non-Veg","price":199,"veg":false,"isVeg":false,"type":"NON-VEG","description":"Spiced minced chicken skewers grilled with fresh herbs, lemon, and chutney.","image":"https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m073","cafeId":"CAF-004","name":"Vanilla Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Thick creamy shake blended with rich Madagascar vanilla ice cream and chilled milk.","image":"https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m074","cafeId":"CAF-004","name":"Chocolate Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Indulgent shake made with rich Belgian chocolate ganache and chocolate ice cream.","image":"https://images.unsplash.com/photo-1577805947697-89e18249d767?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m075","cafeId":"CAF-004","name":"KitKat Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":209,"veg":true,"isVeg":true,"type":"VEG","description":"Crushed crunchy KitKat chocolate bars blended with creamy milk and topped with wafers.","image":"https://images.unsplash.com/photo-1579954115545-a95591f28bfc?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m076","cafeId":"CAF-004","name":"Oreo Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":209,"veg":true,"isVeg":true,"type":"VEG","description":"Creamy vanilla shake packed with crushed Oreo cookies and chocolate drizzle.","image":"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m077","cafeId":"CAF-004","name":"Mango Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":219,"veg":true,"isVeg":true,"type":"VEG","description":"Tropical Alphonso mango pulp blended into a velvety, luscious smoothie shake.","image":"https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m078","cafeId":"CAF-004","name":"Strawberry Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":219,"veg":true,"isVeg":true,"type":"VEG","description":"Sweet and tart real strawberry puree blended with creamy ice cream.","image":"https://images.unsplash.com/photo-1553787499-6f9133860278?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m079","cafeId":"CAF-004","name":"Blueberry Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":219,"veg":true,"isVeg":true,"type":"VEG","description":"Rich wild blueberry crush blended with chilled milk and ice cream.","image":"https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m080","cafeId":"CAF-004","name":"Bubblegum Shake","category":"Beverages — Shakes","mainCategory":"Beverages","subCategory":"Shakes","price":239,"veg":true,"isVeg":true,"type":"VEG","description":"Fun, vibrant retro bubblegum flavored sweet shake with pastel toppings.","image":"https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m081","cafeId":"CAF-004","name":"Lime Soda","category":"Beverages — Soda's Mint","mainCategory":"Beverages","subCategory":"Soda's Mint","price":99,"veg":true,"isVeg":true,"type":"VEG","description":"Sparkling soda with fresh lime juice, salt, and cumin.","image":"https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m082","cafeId":"CAF-004","name":"Fresh Lime Soda","category":"Beverages — Soda's Mint","mainCategory":"Beverages","subCategory":"Soda's Mint","price":99,"veg":true,"isVeg":true,"type":"VEG","description":"Refreshing classic soda with freshly squeezed lime and sugar syrup.","image":"https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m083","cafeId":"CAF-004","name":"Strawberry Soda","category":"Beverages — Soda's Mint","mainCategory":"Beverages","subCategory":"Soda's Mint","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Bubbly sparkling soda infused with sweet strawberry essence and mint.","image":"https://images.unsplash.com/photo-1536935338788-846bb9981813?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m084","cafeId":"CAF-004","name":"Mango Soda","category":"Beverages — Soda's Mint","mainCategory":"Beverages","subCategory":"Soda's Mint","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Tangy sweet mango soda served over crushed ice and mint leaves.","image":"https://images.unsplash.com/photo-1546173159-315724a31696?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m085","cafeId":"CAF-004","name":"Green Apple Soda","category":"Beverages — Soda's Mint","mainCategory":"Beverages","subCategory":"Soda's Mint","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Crisp green apple fizz with a zesty kick of lime and mint.","image":"https://images.unsplash.com/photo-1556881286-fc6915169721?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m086","cafeId":"CAF-004","name":"Black Current Soda","category":"Beverages — Soda's Mint","mainCategory":"Beverages","subCategory":"Soda's Mint","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Sweet and tangy black currant cooler charged with fizzy club soda.","image":"https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m087","cafeId":"CAF-004","name":"Green Apple Granita","category":"Beverages — Granita","mainCategory":"Beverages","subCategory":"Granita","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Crushed crystal ice slush infused with tart sour green apple syrup.","image":"https://images.unsplash.com/photo-1556881286-fc6915169721?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m088","cafeId":"CAF-004","name":"Mango Granita","category":"Beverages — Granita","mainCategory":"Beverages","subCategory":"Granita","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Refreshing shaved ice granita flavored with sweet ripe mango nectar.","image":"https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m089","cafeId":"CAF-004","name":"Black Current Granita","category":"Beverages — Granita","mainCategory":"Beverages","subCategory":"Granita","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Crushed ice slush loaded with intense and fruity black currant flavors.","image":"https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m090","cafeId":"CAF-004","name":"Kiwi Current Granita","category":"Beverages — Granita","mainCategory":"Beverages","subCategory":"Granita","price":169,"veg":true,"isVeg":true,"type":"VEG","description":"Exotic blend of tangy kiwi and black currant over finely shaved ice.","image":"https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m091","cafeId":"CAF-004","name":"Virgin Mojito","category":"Beverages — Mojito","mainCategory":"Beverages","subCategory":"Mojito","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Muddled fresh mint sprigs, lime wedges, simple syrup, and sparkling soda.","image":"https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m092","cafeId":"CAF-004","name":"Blue Ocean Mojito","category":"Beverages — Mojito","mainCategory":"Beverages","subCategory":"Mojito","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Tropical blue curacao cooler with muddled mint, fresh lime, and bubbles.","image":"https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m093","cafeId":"CAF-004","name":"Green Mint Mojito","category":"Beverages — Mojito","mainCategory":"Beverages","subCategory":"Mojito","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Extra refreshing double mint cooler with lime juice and crushed ice.","image":"https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m094","cafeId":"CAF-004","name":"Kiwi Mojito","category":"Beverages — Mojito","mainCategory":"Beverages","subCategory":"Mojito","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Zesty green kiwi crush muddled with mint leaves, lemon, and soda.","image":"https://images.unsplash.com/photo-1589733955941-5eeaf752f6dd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m095","cafeId":"CAF-004","name":"Spicy Guava Mojito","category":"Beverages — Mojito","mainCategory":"Beverages","subCategory":"Mojito","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Pink guava nectar with a hint of chili spice, lime, and cooling mint.","image":"https://images.unsplash.com/photo-1536935338788-846bb9981813?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m096","cafeId":"CAF-004","name":"Lemon Ice Tea","category":"Beverages — Iced Tea","mainCategory":"Beverages","subCategory":"Iced Tea","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Chilled brewed black tea flavored with tangy lemon juice and mint.","image":"https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m097","cafeId":"CAF-004","name":"Peach Ice Tea","category":"Beverages — Iced Tea","mainCategory":"Beverages","subCategory":"Iced Tea","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Refreshing iced tea infused with sweet fragrant peach nectar.","image":"https://images.unsplash.com/photo-1499638673689-79a0b5115d87?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m098","cafeId":"CAF-004","name":"Strawberry Ice Tea","category":"Beverages — Iced Tea","mainCategory":"Beverages","subCategory":"Iced Tea","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Crisp iced tea infused with sweet ripe strawberry flavors.","image":"https://images.unsplash.com/photo-1536935338788-846bb9981813?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m099","cafeId":"CAF-004","name":"Black Current Ice Tea","category":"Beverages — Iced Tea","mainCategory":"Beverages","subCategory":"Iced Tea","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Bold black tea infused with vibrant tart black currant.","image":"https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m100","cafeId":"CAF-004","name":"Blueberry Ice Tea","category":"Beverages — Iced Tea","mainCategory":"Beverages","subCategory":"Iced Tea","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Chilled antioxidant-rich black tea with wild blueberry infusion.","image":"https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m101","cafeId":"CAF-004","name":"Espresso","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":79,"veg":true,"isVeg":true,"type":"VEG","description":"Intense, concentrated single shot of freshly extracted espresso.","image":"https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m102","cafeId":"CAF-004","name":"Hot Americano","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":99,"veg":true,"isVeg":true,"type":"VEG","description":"Rich espresso diluted with hot water for a smooth, deep coffee flavor.","image":"https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m103","cafeId":"CAF-004","name":"Cappuccino","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":119,"veg":true,"isVeg":true,"type":"VEG","description":"Equal parts espresso, steamed milk, and dense creamy foam dusted with cocoa.","image":"https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m104","cafeId":"CAF-004","name":"Hot Cafe Latte","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":119,"veg":true,"isVeg":true,"type":"VEG","description":"Mild espresso balanced with velvety steamed milk and a thin layer of foam.","image":"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m105","cafeId":"CAF-004","name":"Cafe Mocha","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Rich espresso combined with dark chocolate sauce and steamed milk.","image":"https://images.unsplash.com/photo-1578314675249-a6910f80cc4e?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m106","cafeId":"CAF-004","name":"Irish Hot Coffee","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Warm espresso infused with non-alcoholic Irish cream syrup and steamed milk.","image":"https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m107","cafeId":"CAF-004","name":"Hazelnut Hot Coffee","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Nutty roasted hazelnut syrup blended into velvety hot latte.","image":"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m108","cafeId":"CAF-004","name":"Affogato","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"A scoop of creamy vanilla bean gelato drowned in a hot shot of espresso.","image":"https://images.unsplash.com/photo-1592663527359-cf6642f54cff?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m109","cafeId":"CAF-004","name":"Hot Chocolate","category":"Beverages — Hot","mainCategory":"Beverages","subCategory":"Hot","price":119,"veg":true,"isVeg":true,"type":"VEG","description":"Thick, rich molten chocolate simmered with whole milk and topped with foam.","image":"https://images.unsplash.com/photo-1542990253-0d0f5be5f0ed?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m110","cafeId":"CAF-004","name":"Classic Cold Coffee","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Creamy chilled coffee blended with milk, espresso, and sugar.","image":"https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m111","cafeId":"CAF-004","name":"Cold Coffee with Crush","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Chilled cold coffee blended with chocolate chips and cookie crush.","image":"https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m112","cafeId":"CAF-004","name":"Iced Cafe Latte","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Espresso poured over chilled milk and crystal ice cubes.","image":"https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m113","cafeId":"CAF-004","name":"Iced Americano","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":119,"veg":true,"isVeg":true,"type":"VEG","description":"Chilled espresso shot topped with cold water and ice.","image":"https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m114","cafeId":"CAF-004","name":"Cold Coffee with Ice Cream","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":159,"veg":true,"isVeg":true,"type":"VEG","description":"Decadent thick cold coffee crowned with a scoop of vanilla ice cream.","image":"https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m115","cafeId":"CAF-004","name":"Hazelnut Cold Coffee","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Iced cold coffee infused with aromatic roasted hazelnut syrup.","image":"https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m116","cafeId":"CAF-004","name":"Irish Cold Coffee","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Rich chilled coffee blended with smooth Irish cream syrup flavor.","image":"https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m117","cafeId":"CAF-004","name":"Almond Cold Coffee","category":"Beverages — Cold","mainCategory":"Beverages","subCategory":"Cold","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Chilled cold coffee blended with nutty roasted almond notes.","image":"https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m118","cafeId":"CAF-004","name":"Lemon Tea","category":"Beverages — Tea","mainCategory":"Beverages","subCategory":"Tea","price":65,"veg":true,"isVeg":true,"type":"VEG","description":"Freshly brewed hot black tea infused with fresh lemon and honey.","image":"https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m119","cafeId":"CAF-004","name":"Ginger Tea","category":"Beverages — Tea","mainCategory":"Beverages","subCategory":"Tea","price":35,"variants":[{"name":"Half","price":35},{"name":"Full","price":50}],"veg":true,"isVeg":true,"type":"VEG","description":"Aromatic milk tea brewed with fresh crushed ginger root and cardamom.","image":"https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m120","cafeId":"CAF-004","name":"Honey Lemon Tea","category":"Beverages — Tea","mainCategory":"Beverages","subCategory":"Tea","price":75,"veg":true,"isVeg":true,"type":"VEG","description":"Soothing blend of hot green/black tea with raw honey and lemon juice.","image":"https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m121","cafeId":"CAF-004","name":"Kadha","category":"Beverages — Tea","mainCategory":"Beverages","subCategory":"Tea","price":90,"veg":true,"isVeg":true,"type":"VEG","description":"Traditional herbal immunity booster brewed with tulsi, ginger, cloves, cinnamon, and black pepper.","image":"https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m122","cafeId":"CAF-004","name":"Chocolate Shot","category":"Desserts","mainCategory":"Desserts","subCategory":"Desserts","price":99,"veg":true,"isVeg":true,"type":"VEG","description":"Concentrated shot of pure molten dark Belgian chocolate.","image":"https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m123","cafeId":"CAF-004","name":"Chocolate Pudding in a Chocolate Cup","category":"Desserts","mainCategory":"Desserts","subCategory":"Desserts","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Silky dark chocolate mousse pudding served inside an edible chocolate cup.","image":"https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m124","cafeId":"CAF-004","name":"Brownie Chocolate Bomb","category":"Desserts","mainCategory":"Desserts","subCategory":"Desserts","price":349,"veg":true,"isVeg":true,"type":"VEG","description":"Warm fudge brownie dome that melts open when poured over with sizzling hot chocolate fudge.","image":"https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m125","cafeId":"CAF-004","name":"Dark Chocolate Brownie","category":"Chocolate Brownie","mainCategory":"Chocolate Brownie","subCategory":"Brownie","price":129,"veg":true,"isVeg":true,"type":"VEG","description":"Intense 70% dark cocoa fudge brownie with a crackly crust.","image":"https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m126","cafeId":"CAF-004","name":"Milk Chocolate Brownie","category":"Chocolate Brownie","mainCategory":"Chocolate Brownie","subCategory":"Brownie","price":139,"veg":true,"isVeg":true,"type":"VEG","description":"Soft, gooey milk chocolate brownie packed with melted chocolate pockets.","image":"https://images.unsplash.com/photo-1515037893149-de7f840978e2?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m127","cafeId":"CAF-004","name":"White Chocolate Brownie","category":"Chocolate Brownie","mainCategory":"Chocolate Brownie","subCategory":"Brownie","price":149,"veg":true,"isVeg":true,"type":"VEG","description":"Buttery white chocolate blondie brownie baked with vanilla bean.","image":"https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m128","cafeId":"CAF-004","name":"Nutella Chocolate Brownie","category":"Chocolate Brownie","mainCategory":"Chocolate Brownie","subCategory":"Brownie","price":179,"veg":true,"isVeg":true,"type":"VEG","description":"Decadent fudge brownie swirled with generous layers of roasted hazelnut Nutella.","image":"https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m129","cafeId":"CAF-004","name":"Hazelnut Cheesecake","category":"Cheesecake","mainCategory":"Cheesecake","subCategory":"Cheesecake","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Creamy New York cheesecake infused with roasted hazelnut praline.","image":"https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m130","cafeId":"CAF-004","name":"Blueberry Cheesecake","category":"Cheesecake","mainCategory":"Cheesecake","subCategory":"Cheesecake","price":189,"veg":true,"isVeg":true,"type":"VEG","description":"Classic silky baked cheesecake topped with glossy wild blueberry compote.","image":"https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=700&q=80","available":true},
+    {"id":"bk_m131","cafeId":"CAF-004","name":"Lotus-Biscoff Cheesecake","category":"Cheesecake","mainCategory":"Cheesecake","subCategory":"Cheesecake","price":199,"veg":true,"isVeg":true,"type":"VEG","description":"Decadent cheesecake layered with spiced Lotus Biscoff spread and biscuit crumb.","image":"https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=700&q=80","available":true}
   ],
   orders: [
     {id:'ORD-1048',cafeId:'CAF-001',table:'04',customerName:'Ananya Sharma',items:[{name:'House Cappuccino',qty:2,price:180},{name:'Butter Croissant',qty:1,price:155}],total:567,status:'Preparing',time:'10:42 AM',date:'Today',timestamp:Date.now()-1000*60*25},
@@ -173,6 +342,20 @@ if (!db.cafes || !db.cafes.length) db.cafes = seed.cafes;
 db.menu = db.menu || seed.menu;
 db.orders = db.orders || seed.orders;
 db.tableResets = db.tableResets || {};
+
+// Merge any missing seed cafes into db.cafes
+seed.cafes.forEach(sc => {
+  if (!db.cafes.some(c => c.id === sc.id || (sc.slug && c.slug === sc.slug))) {
+    db.cafes.push(sc);
+  }
+});
+
+// Merge any missing seed menu items into db.menu
+seed.menu.forEach(sm => {
+  if (!db.menu.some(m => m.id === sm.id)) {
+    db.menu.push(sm);
+  }
+});
 
 db.menu.forEach(item => item.cafeId ||= db.cafes[0].id);
 db.orders.forEach(order => {
@@ -3083,19 +3266,33 @@ function posPage() {
                 </div>
                 <div class="pos-item-category-tag">${esc(item.category)}</div>
                 <p class="pos-item-desc">${esc(item.description || '')}</p>
-                <div class="pos-item-actions">
-                  ${inCart ? `
-                    <div class="pos-item-stepper">
-                      <button type="button" class="pos-stepper-btn" data-staff-qty="${item.id}" data-change="-1">−</button>
-                      <b class="pos-stepper-val">${inCart.qty}</b>
-                      <button type="button" class="pos-stepper-btn" data-staff-qty="${item.id}" data-change="1">+</button>
-                    </div>
-                  ` : `
-                    <button type="button" class="primary pos-btn-add" data-staff-add="${item.id}">
-                      ${icon('plus')} Add to Order
-                    </button>
-                  `}
-                </div>
+                ${item.variants && item.variants.length ? `
+                  <div class="pos-variants-container" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">
+                    ${item.variants.map((v, vIdx) => {
+                      const vCartId = `${item.id}_v_${vIdx}`;
+                      const vInCart = staffCart.find(x => x.id === vCartId);
+                      return `
+                        <button type="button" class="${vInCart ? 'primary' : 'outline'} pos-btn-variant-add" data-staff-variant-add="${item.id}" data-staff-vidx="${vIdx}" style="padding:4px 8px;font-size:11px;font-weight:700;border-radius:8px;">
+                          ${esc(v.name)} ${money(v.price)} ${vInCart ? `(${vInCart.qty})` : ''}
+                        </button>
+                      `;
+                    }).join('')}
+                  </div>
+                ` : `
+                  <div class="pos-item-actions">
+                    ${inCart ? `
+                      <div class="pos-item-stepper">
+                        <button type="button" class="pos-stepper-btn" data-staff-qty="${item.id}" data-change="-1">−</button>
+                        <b class="pos-stepper-val">${inCart.qty}</b>
+                        <button type="button" class="pos-stepper-btn" data-staff-qty="${item.id}" data-change="1">+</button>
+                      </div>
+                    ` : `
+                      <button type="button" class="primary pos-btn-add" data-staff-add="${item.id}">
+                        ${icon('plus')} Add to Order
+                      </button>
+                    `}
+                  </div>
+                `}
               </div>
             </article>`;
           }).join('') : `<div class="panel empty" style="grid-column: 1 / -1; padding: 40px 20px; text-align: center;">
@@ -3339,8 +3536,8 @@ function customerView(){
   let fullAddress = c.address || 'Park Street, Kolkata';
   let cartCount = state.cart.reduce((a,i)=>a+i.qty, 0);
   let cartSubtotal = state.cart.reduce((a,x)=>{
-    let itm = myMenu().find(m=>m.id===x.id);
-    return a + (itm ? itm.price * x.qty : 0);
+    let itm = myMenu().find(m=>m.id===(x.baseId || x.id));
+    return a + ((x.price !== undefined ? x.price : (itm ? itm.price : 0)) * x.qty);
   }, 0);
 
   const sessionOrders = getSessionOrders();
@@ -3400,36 +3597,85 @@ function customerView(){
   ` : '';
 
   return `<main class="customer"><nav class="customer-nav"><div class="customer-brand-group"><button type="button" class="customer-brand" id="customer-home"><span class="brand-title">${esc(c.name)}</span><span class="brand-sub">${icon('map-pin')} ${esc(locationSummary)}</span></button></div><div class="customer-nav-actions">${sessionOrders.length > 0 ? `<button type="button" class="outline" id="nav-btn-orders-tracker" style="padding:6px 14px;font-size:12px;border-radius:20px;font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#fbf6ef;color:#704214;border-color:#d5bc9f;" title="View all ordered items and running table bill">${icon('clipboard-list')} <span>Table Orders (${sessionOrders.length}) · ${money(grandTotal)}</span></button>` : ''}<button type="button" class="outline" id="btn-switch-table" style="padding:6px 12px;font-size:12px;border-radius:20px;font-weight:600;" title="Switch Table QR">${icon('camera')} <span>Switch Table</span></button><button type="button" class="cart-trigger" id="cart-open" aria-label="Cart">${icon('shopping-bag')}<span class="cart-label">Cart</span><b class="cart-count">${cartCount}</b></button><button type="button" class="staff-link-btn" id="go-login" title="Staff Portal" aria-label="Staff Login">${icon('key-round')} <span class="staff-label">Staff</span></button></div></nav><div style="text-align:center;padding:8px 12px 0;"><span class="scanned-table-pill">${icon('shield-check')} <span>Table <b>${esc(state.table)}</b> · Active QR Session</span></span></div>${sessionOrders.length > 0 ? `<div class="active-order-banner ${statusClass(bannerStatus)}" id="active-order-bar" style="cursor:pointer;" title="Click to view all table orders and running bill"><div class="banner-info"><span class="pulse-dot"></span><div class="banner-text"><span class="banner-title">Table <b>${esc(state.table)}</b>: ${sessionOrders.length} ${sessionOrders.length === 1 ? 'Order Active' : 'Orders Active'} (${totalItemsCount} items) · Running Total: <b>${money(grandTotal)}</b></span><span class="banner-sub">${hasReady ? '🎉 Your food is ready for you!' : hasPrep ? '☕ Baristas and kitchen are preparing your items' : 'Orders received at the counter'}</span></div></div><button type="button" class="banner-btn" id="banner-track-btn"><span>Track Orders & Bill (${money(grandTotal)})</span> ${icon('arrow-right')}</button></div>` : ''}<section class="customer-hero"><div class="hero-image" style="background-image:linear-gradient(180deg,rgba(31,23,18,.25),rgba(31,23,18,.8)),url('${c.image}')"><div class="hero-content"><div class="eyebrow" style="color:#e5bd7d">A considered café experience</div><h1>${esc(c.name)}</h1><p>${esc(c.description)}</p><div class="hero-meta"><span>${icon('map-pin')} ${esc(fullAddress)}</span><span>${icon('clock-3')} Open until ${clockLabel(c.closesAt)}</span></div></div></div></section><section class="customer-content"><div class="category-tabs">${cats.map(x=>`<button type="button" class="customer-cat ${state.customerCategory===x?'active':''}" data-cat="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="menu-header"><div><h2>Made for the moment</h2><p>Choose something you’ll look forward to.</p></div><span class="panel-sub">${menu.filter(m=>m.available).length} items</span></div><div class="customer-menu">${menu.filter(m=>m.available&&(state.customerCategory==='All'||m.category===state.customerCategory)).map(m=>{
-    const inCart = state.cart.find(x => x.id === m.id);
-    const inCartQty = inCart ? inCart.qty : 0;
-    return `<article class="customer-card ${inCartQty > 0 ? 'in-cart' : ''}">
+    const hasVariants = Array.isArray(m.variants) && m.variants.length > 0;
+    const itemCartEntries = state.cart.filter(x => x.id === m.id || x.baseId === m.id);
+    const totalItemInCartQty = itemCartEntries.reduce((sum, x) => sum + x.qty, 0);
+
+    return `<article class="customer-card ${totalItemInCartQty > 0 ? 'in-cart' : ''}">
       <div class="customer-card-media">
         <img src="${m.image}" alt="${esc(m.name)}" loading="lazy">
-        ${inCartQty > 0 ? `<span class="customer-item-cart-qty-badge">${inCartQty} in cart</span>` : ''}
+        ${totalItemInCartQty > 0 ? `<span class="customer-item-cart-qty-badge">${totalItemInCartQty} in cart</span>` : ''}
       </div>
       <div class="customer-card-content">
-        <div class="tag">${esc(m.category)} · ${m.veg?'Vegetarian':'Non-vegetarian'}</div>
+        <div class="tag ${m.veg ? 'tag-veg' : 'tag-nonveg'}">${esc(m.category)} · ${m.veg ? '🌱 Vegetarian' : '🍗 Non-veg'}</div>
         <h3>${esc(m.name)}</h3>
         <p>${esc(m.description)}</p>
-        <div class="customer-card-footer">
-          <strong class="price">${money(m.price)}</strong>
-          ${inCartQty > 0 ? `
-            <div class="customer-item-stepper" aria-label="${esc(m.name)} quantity: ${inCartQty}">
-              <button type="button" class="customer-stepper-btn" data-customer-qty="${m.id}" data-change="-1" title="Decrease quantity" aria-label="Decrease ${esc(m.name)} quantity">−</button>
-              <b class="customer-stepper-val">${inCartQty}</b>
-              <button type="button" class="customer-stepper-btn" data-customer-qty="${m.id}" data-change="1" title="Increase quantity" aria-label="Increase ${esc(m.name)} quantity">+</button>
-            </div>
-          ` : `
-            <button type="button" class="add-btn" data-add="${m.id}" title="Add ${esc(m.name)} to cart" aria-label="Add ${esc(m.name)}">+</button>
-          `}
-        </div>
+        ${hasVariants ? `
+          <div class="customer-variant-group">
+            ${m.variants.map((v, vIdx) => {
+              const vCartId = `${m.id}_v_${vIdx}`;
+              const vInCart = state.cart.find(x => x.id === vCartId || (x.baseId === m.id && x.variant === v.name));
+              const vQty = vInCart ? vInCart.qty : 0;
+              return `
+                <div class="variant-pill-row">
+                  <span class="variant-name">${esc(v.name)}: <b>${money(v.price)}</b></span>
+                  ${vQty > 0 ? `
+                    <div class="customer-item-stepper mini-stepper" aria-label="${esc(m.name)} ${esc(v.name)} quantity: ${vQty}">
+                      <button type="button" class="customer-stepper-btn" data-customer-variant-qty="${m.id}" data-variant-idx="${vIdx}" data-change="-1" title="Decrease ${esc(v.name)}" aria-label="Decrease quantity">−</button>
+                      <b class="customer-stepper-val">${vQty}</b>
+                      <button type="button" class="customer-stepper-btn" data-customer-variant-qty="${m.id}" data-variant-idx="${vIdx}" data-change="1" title="Increase ${esc(v.name)}" aria-label="Increase quantity">+</button>
+                    </div>
+                  ` : `
+                    <button type="button" class="variant-add-btn" data-add-variant="${m.id}" data-variant-idx="${vIdx}" title="Add ${esc(m.name)} (${esc(v.name)})">+ Add</button>
+                  `}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div class="customer-card-footer">
+            <strong class="price">${money(m.price)}</strong>
+            ${totalItemInCartQty > 0 ? `
+              <div class="customer-item-stepper" aria-label="${esc(m.name)} quantity: ${totalItemInCartQty}">
+                <button type="button" class="customer-stepper-btn" data-customer-qty="${m.id}" data-change="-1" title="Decrease quantity" aria-label="Decrease ${esc(m.name)} quantity">−</button>
+                <b class="customer-stepper-val">${totalItemInCartQty}</b>
+                <button type="button" class="customer-stepper-btn" data-customer-qty="${m.id}" data-change="1" title="Increase quantity" aria-label="Increase ${esc(m.name)} quantity">+</button>
+              </div>
+            ` : `
+              <button type="button" class="add-btn" data-add="${m.id}" title="Add ${esc(m.name)} to cart" aria-label="Add ${esc(m.name)}">+</button>
+            `}
+          </div>
+        `}
       </div>
     </article>`;
-  }).join('')}</div></section>${cartDrawer()}${floatingMarkup}</main>`;
+  }).join('')}</div>
+  ${((c.notes && c.notes.length) || c.disclaimer) ? `
+    <section class="cafe-notes-section">
+      <div class="cafe-notes-header">
+        ${icon('info')} <span>Café Notes & Disclaimers</span>
+      </div>
+      ${c.notes && c.notes.length ? `
+        <ul class="cafe-notes-list">
+          ${c.notes.map(n => `<li>${esc(n)}</li>`).join('')}
+        </ul>
+      ` : `<p class="cafe-disclaimer-text">${esc(c.disclaimer)}</p>`}
+    </section>
+  ` : ''}
+  </section>${cartDrawer()}${floatingMarkup}</main>`;
 }
 
 function cartDrawer(){
-  let items = state.cart.map(x=>({...myMenu().find(m=>m.id===x.id),qty:x.qty}));
+  let items = state.cart.map(x => {
+    let base = myMenu().find(m => m.id === (x.baseId || x.id));
+    return {
+      ...base,
+      ...x,
+      name: x.variant ? `${base?.name || x.name} (${x.variant})` : (base?.name || x.name),
+      price: x.price !== undefined ? x.price : (base?.price || 0),
+      image: x.image || base?.image,
+      qty: x.qty
+    };
+  });
   let breakdown = calculateOrderBreakdown(items, cafe());
   const currentGuest = state.customerName || (state.table ? getActiveTableGuestName(state.table, cafe().id) : '') || '';
 
@@ -4724,8 +4970,13 @@ async function placeOrder(){
   saveSession();
 
   let items = state.cart.map(x => {
-    let m = myMenu().find(m => m.id === x.id);
-    return { name: m.name, qty: x.qty, price: m.price, isNew: true };
+    let base = myMenu().find(m => m.id === (x.baseId || x.id));
+    return {
+      name: x.variant ? `${base?.name || x.name} (${x.variant})` : (base?.name || x.name),
+      qty: x.qty,
+      price: x.price !== undefined ? x.price : (base?.price || 0),
+      isNew: true
+    };
   });
   let breakdown = calculateOrderBreakdown(items, cafe().id);
   let id = `ORD-${Math.max(1000, ...db.orders.map(o => +o.id.split('-')[1] || 0)) + 1}`;
@@ -4784,6 +5035,16 @@ async function syncCloudDb(){
     if(res.ok){
       const serverDb = await res.json();
       if(serverDb && typeof serverDb === 'object' && serverDb.cafes && serverDb.menu){
+        seed.cafes.forEach(sc => {
+          if (!serverDb.cafes.some(c => c.id === sc.id || (sc.slug && c.slug === sc.slug))) {
+            serverDb.cafes.push(sc);
+          }
+        });
+        seed.menu.forEach(sm => {
+          if (!serverDb.menu.some(m => m.id === sm.id)) {
+            serverDb.menu.push(sm);
+          }
+        });
         const serverSnapshot = JSON.stringify(serverDb);
         if(serverSnapshot !== lastDbSnapshot){
           const oldOrders = db.orders || [];
