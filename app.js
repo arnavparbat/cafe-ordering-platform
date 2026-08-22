@@ -951,6 +951,7 @@ const defaultState = {
   table: '',
   tableVerified: false,
   qrToken: null,
+  qrScannedAt: null,
   tamperAttempt: null,
   tableFromQr: false,
   placedOrderIds: [],
@@ -984,12 +985,20 @@ function loadSession(){
     if(!raw) return null;
     const session = JSON.parse(raw);
     if(session && session.timestamp && (Date.now() - session.timestamp < SESSION_DURATION_MS)){
-      // Validate saved table token against cafe secret
+      // Validate saved table token against cafe secret and verify table was not restarted
       if(session.table && session.qrToken && session.cafeId){
-        if(!verifyTableToken(session.cafeId, session.table, session.qrToken)){
+        const cleanTbl = String(session.table).padStart(2, '0');
+        const resetTime = (db.tableResets && db.tableResets[`${session.cafeId}_${cleanTbl}`]) || 0;
+        const scanTime = Number(session.qrScannedAt) || 0;
+        if(!verifyTableToken(session.cafeId, session.table, session.qrToken) || (resetTime > 0 && scanTime <= resetTime)){
           session.table = '';
           session.tableVerified = false;
           session.qrToken = null;
+          session.qrScannedAt = null;
+          session.tableFromQr = false;
+          session.placedOrderIds = [];
+          session.confirmed = null;
+          session.cart = [];
         }
       }
       return session;
@@ -1011,6 +1020,7 @@ function saveSession(){
       table: state.table || '',
       tableVerified: !!state.tableVerified,
       qrToken: state.qrToken || null,
+      qrScannedAt: state.qrScannedAt || null,
       tamperAttempt: state.tamperAttempt || null,
       tableFromQr: !!state.tableFromQr,
       placedOrderIds: state.placedOrderIds || [],
@@ -1049,13 +1059,21 @@ if (routing.isTableVerified && routing.tableParam) {
   state.tableVerified = true;
   state.qrToken = routing.qrToken;
   state.tableFromQr = true;
+  state.qrScannedAt = Date.now();
   state.tamperAttempt = null;
   state.view = 'customer';
+  try {
+    if (window.history && window.history.replaceState) {
+      const cleanUrl = `${window.location.pathname}?cafe=${encodeURIComponent(state.cafeId)}`;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  } catch (_) {}
 } else if (routing.hasTamperedTable) {
   // Tampering detected: clear any table lock & warn the customer
   state.table = '';
   state.tableVerified = false;
   state.qrToken = null;
+  state.qrScannedAt = null;
   state.tableFromQr = false;
   state.tamperAttempt = routing.hasTamperedTable;
   state.view = 'customer';
@@ -1067,6 +1085,50 @@ if (routing.isLogin) {
   state.view = 'customer';
 }
 saveSession();
+
+// Check if a dining table QR session is active and has not been restarted by the café
+function isTableSessionActive(tbl = state.table, token = state.qrToken, cId = state.cafeId, scannedAt = state.qrScannedAt) {
+  if (!tbl || !token) return false;
+  const cleanTbl = String(tbl).padStart(2, '0');
+  const targetCafeId = cId || (db.cafes && db.cafes[0]?.id) || 'CAF-001';
+  if (!verifyTableToken(targetCafeId, cleanTbl, token)) return false;
+  const resetTime = (db.tableResets && db.tableResets[`${targetCafeId}_${cleanTbl}`]) || 0;
+  if (resetTime > 0) {
+    const scanTime = Number(scannedAt) || 0;
+    if (scanTime <= resetTime) {
+      return false; // Table was restarted after QR was scanned
+    }
+  }
+  return true;
+}
+
+// Invalidate table session when table is restarted or reset
+function invalidateTableSession(notify = true, customMsg = null) {
+  const wasTable = state.table ? String(state.table).padStart(2, '0') : '';
+  state.table = '';
+  state.tableVerified = false;
+  state.qrToken = null;
+  state.qrScannedAt = null;
+  state.tableFromQr = false;
+  state.placedOrderIds = [];
+  state.confirmed = null;
+  state.cart = [];
+  state.cartOpen = false;
+  state.customerName = '';
+  if (state.view === 'confirmation') {
+    state.view = 'customer';
+  }
+  try {
+    if (window.history && window.history.replaceState) {
+      const cleanUrl = `${window.location.pathname}?cafe=${encodeURIComponent(state.cafeId || (db.cafes && db.cafes[0]?.id) || 'CAF-001')}`;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  } catch (_) {}
+  saveSession();
+  if (notify && wasTable) {
+    toast(customMsg || `🔄 Table ${wasTable} session ended. Please re-scan table QR code to order.`);
+  }
+}
 
 // Helper to get all active table orders placed during this guest session
 function getSessionOrders(){
@@ -1591,7 +1653,14 @@ function handleGatekeeperQrScan(qrContent) {
         state.tableVerified = true;
         state.qrToken = tokenParam;
         state.tableFromQr = true;
+        state.qrScannedAt = Date.now();
         state.tamperAttempt = null;
+        try {
+          if (window.history && window.history.replaceState) {
+            const cleanUrl = `${window.location.pathname}?cafe=${encodeURIComponent(targetCafe.id)}`;
+            window.history.replaceState(null, '', cleanUrl);
+          }
+        } catch (_) {}
         saveSession();
         playToingSound();
         toast(`✅ Verified Table ${cleanTable}! Welcome to ${targetCafe.name}.`);
@@ -1691,19 +1760,19 @@ function render(){
   } else if (state.view === 'dashboard') {
     stopLiveCameraScanner();
     app.innerHTML = dashboardView();
-  } else if (state.view === 'confirmation') {
-    stopLiveCameraScanner();
-    app.innerHTML = confirmationView();
   } else {
     // Guest Customer Flow:
-    // Strictly require verified table QR session!
-    const isTableVerified = !!(state.table && state.tableVerified && state.qrToken && verifyTableToken(state.cafeId, state.table, state.qrToken));
-    if (!isTableVerified) {
-      state.table = '';
-      state.tableVerified = false;
-      state.qrToken = null;
+    // Strictly require verified table QR session that has NOT been restarted!
+    if (!isTableSessionActive()) {
+      if (state.tableVerified || state.table) {
+        invalidateTableSession(true);
+      }
+      stopLiveCameraScanner();
       app.innerHTML = qrGatekeeperView();
       initGatekeeperCamera();
+    } else if (state.view === 'confirmation') {
+      stopLiveCameraScanner();
+      app.innerHTML = confirmationView();
     } else {
       stopLiveCameraScanner();
       app.innerHTML = customerView();
@@ -2452,10 +2521,7 @@ function restartTableOrder(tableNum) {
   db.tableResets[`${cId}_${cleanTbl}`] = now;
 
   if (state.cafeId === cId && String(state.table).padStart(2, '0') === cleanTbl) {
-    state.placedOrderIds = [];
-    state.confirmed = null;
-    state.cart = [];
-    state.customerName = '';
+    invalidateTableSession(false);
   }
 
   if (String(state.staffTable || '').padStart(2, '0') === cleanTbl) {
@@ -2464,7 +2530,7 @@ function restartTableOrder(tableNum) {
   }
 
   saveSession();
-  save();
+  save(true);
   playNotificationSound();
   toast(`🖨️ Bill printed & Table ${cleanTbl} successfully restarted for next guest!`);
   render();
@@ -4417,12 +4483,9 @@ function closeModal(){
 }
 
 async function placeOrder(){
-  if(!state.table || !state.tableVerified || !state.qrToken || !verifyTableToken(cafe().id, state.table, state.qrToken)){
-    toast('🔒 Please scan the physical QR code on your dining table to place an order');
-    state.table = '';
-    state.tableVerified = false;
-    state.qrToken = null;
-    saveSession();
+  if(!isTableSessionActive()){
+    toast('🔒 Table session ended or reset. Please re-scan your table QR code to place an order');
+    invalidateTableSession(false);
     render();
     return;
   }
@@ -4511,6 +4574,16 @@ async function syncCloudDb(){
           lastDbSnapshot = serverSnapshot;
           localStorage.setItem('juniper-db', JSON.stringify(db));
 
+          // Check if guest's table session was restarted by the cafe
+          if (state.view !== 'dashboard' && state.view !== 'login' && (state.table || state.tableVerified)) {
+            if (!isTableSessionActive()) {
+              const tbl = state.table ? String(state.table).padStart(2, '0') : '';
+              invalidateTableSession(true, `🔄 Table ${tbl || ''} was restarted by the café. Please re-scan table QR code to order.`);
+              render();
+              return;
+            }
+          }
+
           // Check if cafe received new orders
           const newOrders = (db.orders || []).filter(o => !oldIds.has(o.id) && o.cafeId === cafe().id);
           if(state.role === 'cafe' && newOrders.length > 0){
@@ -4568,6 +4641,16 @@ window.addEventListener('storage', e => {
         db = freshDb;
         lastDbSnapshot = JSON.stringify(db);
         
+        // Check if guest's table session was restarted by the cafe
+        if (state.view !== 'dashboard' && state.view !== 'login' && (state.table || state.tableVerified)) {
+          if (!isTableSessionActive()) {
+            const tbl = state.table ? String(state.table).padStart(2, '0') : '';
+            invalidateTableSession(true, `🔄 Table ${tbl || ''} was restarted by the café. Please re-scan table QR code to order.`);
+            render();
+            return;
+          }
+        }
+
         if(state.role === 'cafe' && newOrders.length > 0){
           playNotificationSound();
           const latestNew = newOrders[0];
